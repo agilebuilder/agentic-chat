@@ -27,7 +27,7 @@ describe('AG-UI adapter fixture', () => {
     expect(state.runs['run-ag']?.status).toBe('completed')
     expect(state.toolCalls['call-ag']?.inputText).toBe('{"query":"agent UI"}')
     expect(state.toolCalls['call-ag']?.output).toBe('3 sources')
-    expect(state.results['run-ag']).toBe('研究完成')
+    expect(state.results['run-ag']).toEqual({ kind: 'text', value: '研究完成' })
     expect(state.streams['run-ag']?.lastSequence).toBe(fixture.length)
   })
 

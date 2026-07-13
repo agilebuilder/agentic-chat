@@ -329,10 +329,9 @@ Renderer registry 按语义而不是外部事件名注册：
 ```ts
 interface RendererRegistry {
   tool(name: string, renderer: ToolRenderer): Unsubscribe
+  result(kind: string, renderer: ResultRenderer): Unsubscribe
   artifact(mimeOrKind: string, renderer: ArtifactRenderer): Unsubscribe
-  activity(kind: string, renderer: ActivityRenderer): Unsubscribe
-  messagePart(kind: string, renderer: MessagePartRenderer): Unsubscribe
-  intervention(kind: string, renderer: InterventionRenderer): Unsubscribe
+  message(kind: string, renderer: MessageRenderer): Unsubscribe
 }
 ```
 
@@ -345,6 +344,7 @@ interface RendererRegistry {
 - 不可信 iframe 或 HTML 由独立 sandbox renderer 处理；
 - ChatBI 的 SQL、图表、结果表放在 ChatBI integration package 或 ChatBI 仓库。
 - registry 必须是 runtime/provider 实例级对象，不得使用进程级可变单例，以保证多实例、SSR 和测试隔离。
+- P2 的 `result` 与 `message.content` 使用 `{ kind, value }` 信封选择 renderer；adapter 必须给领域内容提供稳定的语义 kind，不能由 UI 猜测 payload 结构。
 
 ### 7.1 可见内容分级
 

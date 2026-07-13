@@ -112,9 +112,10 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     const activity = next.activities[activityId]
     if (activity) next.activities[activity.id] = { ...activity, status: event.type === 'tool.completed' ? 'completed' : 'failed', endedAt: event.timestamp }
   } else if (event.type === 'result.available') {
-    next.results[event.runId] = event.data.result
+    next.results[event.runId] = { kind: event.data.kind, value: event.data.result }
   } else if (event.type === 'result.delta') {
-    next.results[event.runId] = `${typeof next.results[event.runId] === 'string' ? next.results[event.runId] : ''}${event.data.delta}`
+    const current = next.results[event.runId]
+    next.results[event.runId] = { kind: 'text', value: `${current?.kind === 'text' && typeof current.value === 'string' ? current.value : ''}${event.data.delta}` }
   } else if (event.type === 'intervention.requested') {
     if (next.interventions[event.data.interventionId]) return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} already exists`)
     next.interventions[event.data.interventionId] = {

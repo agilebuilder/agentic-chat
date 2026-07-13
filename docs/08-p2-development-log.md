@@ -1,7 +1,7 @@
 # P2 可复用 Alpha 开发记录
 
 > 开始日期：2026-07-13  
-> 当前状态：第二片——真实包消费边界已完成。
+> 当前状态：第三片——renderer 扩展机制已完成。
 
 ## 已确认决策
 
@@ -35,12 +35,23 @@
 - 新增连接状态和迟到 waiter 回归测试，`chat_ui` 当前 39 项测试通过；
 - ChatBI 13 项前端测试和 production build 通过；Playwright Agentic Chat 相关路径通过，原有移动端非法上传用例首轮偶发超时、单独复跑通过。
 
+## 第三片已完成
+
+- canonical result 与 message content 使用框架无关的 `{ kind, value }` 信封；
+- `@agentic-chat/react` 提供实例级 `createRendererRegistry`，支持 Tool、Result、Artifact 和 Message；
+- registry 支持精确键、`*` fallback、动态注册/注销和安全替换，不使用全局可变单例；
+- `@agentic-chat/react-ui` 提供四类稳定 fallback，领域 renderer 异常时由局部 error boundary 回退；
+- 默认 Artifact fallback 不直接创建不可信 URI 链接，只显示地址文本；
+- Playground 注册自定义 Tool 与 Result renderer；
+- ChatBI adapter 将结果标记为 `chatbi.query-result`，ChatBI 通过公开 registry 注册现有洞察、图表、表格和 SQL renderer；
+- registry/fallback/领域接入测试完成，`chat_ui` 当前 11 个文件、43 项测试通过；
+- ChatBI 13 项测试和 production build 通过；桌面/移动主查询与 PostgreSQL 领域结果 Playwright 3 项通过、1 项按项目条件跳过。
+
 ## 下一片
 
-1. 建立 renderer registry、fallback 与 custom renderer 示例；
-2. 设计并实现 ChatBI 创建 Run 的持久化 idempotency key；
-3. 完善 SSR server snapshot、selector 性能和长 Run 状态回收；
-4. 增加 React/Vite minimal consumer 和 Storybook 状态矩阵。
+1. 设计并实现 ChatBI 创建 Run 的持久化 idempotency key；
+2. 完善 SSR server snapshot、selector 性能和长 Run 状态回收；
+3. 增加 React/Vite minimal consumer 和 Storybook 状态矩阵。
 
 ## 发布前外部依赖
 

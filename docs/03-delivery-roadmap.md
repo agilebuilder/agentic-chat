@@ -267,8 +267,8 @@ P1 UI 默认只实现线性 Activity 时间线。父子、并行、Task、通用
 - [x] core/runtime/adapter 的发布依赖中不存在 React、Vue 和 DOM-only 包；
 - [x] 一个不挂载 React 的 Node harness 可以创建 runtime、replay fixtures、执行 selector 和 command mock；
 - [x] React bindings 只消费公开 runtime contract，不导入 adapter 内部实现；
-- [ ] 消费者可替换 Tool、Artifact 和 Message renderer；
-- [ ] 未注册内容有可理解的 fallback；
+- [x] 消费者可替换 Tool、Artifact 和 Message renderer；
+- [x] 未注册内容有可理解的 fallback；
 - [ ] 默认 CSS 不明显污染宿主全局样式；
 - [ ] 深浅主题和窄屏基础体验可用；
 - [ ] 键盘可完成输入、发送、停止、展开和主要介入操作；

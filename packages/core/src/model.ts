@@ -23,12 +23,17 @@ export interface Thread {
   runIds: string[]
 }
 
+export interface RenderableContent {
+  kind: string
+  value: unknown
+}
+
 export interface Message {
   id: string
   threadId: string
   runId?: string
   role: 'user' | 'assistant' | 'system'
-  content: unknown
+  content: RenderableContent
   createdAt: string
 }
 
@@ -126,7 +131,7 @@ export interface AgenticState {
   activities: Record<string, Activity>
   toolCalls: Record<string, ToolCall>
   activityByToolCallId: Record<string, string>
-  results: Record<string, unknown>
+  results: Record<string, RenderableContent>
   interventions: Record<string, Intervention>
   tasks: Record<string, AgentTask>
   artifacts: Record<string, Artifact>

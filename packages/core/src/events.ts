@@ -22,7 +22,7 @@ export type CanonicalEvent =
   | EventEnvelope<'tool.args.delta', { toolCallId: string; delta: string }>
   | EventEnvelope<'tool.completed', { toolCallId: string; output?: unknown }>
   | EventEnvelope<'tool.failed', { toolCallId: string; error: AgentError }>
-  | EventEnvelope<'result.available', { result: unknown }>
+  | EventEnvelope<'result.available', { kind: string; result: unknown }>
   | EventEnvelope<'result.delta', { delta: string }>
   | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string }>
   | EventEnvelope<'intervention.resolved', { interventionId: string; response: unknown }>

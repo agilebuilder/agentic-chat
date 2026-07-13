@@ -21,6 +21,7 @@ pnpm verify
 ```
 
 See [`docs/01-product-requirements.md`](docs/01-product-requirements.md) and [`docs/03-delivery-roadmap.md`](docs/03-delivery-roadmap.md) for current scope.
+Custom UI integrations can start with the [`renderer guide`](docs/09-renderer-guide.md).
 
 ## License
 

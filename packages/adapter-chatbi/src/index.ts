@@ -69,7 +69,7 @@ export function adaptChatBiEvent(event: ChatBiRunEvent): AdaptResult {
         ? { event: { ...base, type: 'tool.failed', data: { toolCallId: event.tool_call_id, error: errorFrom(event.payload) } } }
         : { event: { ...base, type: 'tool.completed', data: { toolCallId: event.tool_call_id, output: event.payload } } }
     }
-    case 'result': return { event: { ...base, type: 'result.available', data: { result: event.payload } } }
+    case 'result': return { event: { ...base, type: 'result.available', data: { kind: 'chatbi.query-result', result: event.payload } } }
     case 'run.completed': return { event: { ...base, type: 'run.completed', data: {} } }
     case 'run.failed': return { event: { ...base, type: 'run.failed', data: { error: errorFrom(event.payload) } } }
     case 'run.cancelled': return { event: { ...base, type: 'run.cancelled', data: {} } }
