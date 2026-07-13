@@ -1,4 +1,5 @@
 import { createInitialState, reduceEvent, type AgenticState, type CanonicalEvent } from '@agentic-chat/core'
+export * from './contracts.js'
 
 export interface AgenticRuntime {
   getSnapshot(): AgenticState
@@ -23,4 +24,3 @@ export function createRuntime(initialState: AgenticState = createInitialState())
     },
   }
 }
-

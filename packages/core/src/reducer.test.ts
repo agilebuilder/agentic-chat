@@ -33,6 +33,15 @@ describe('canonical reducer', () => {
     expect(gap.diagnostics.at(-1)?.code).toBe('sequence_gap')
   })
 
+  it('unblocks when replay supplies the missing event', () => {
+    const started = reduceEvent(createInitialState(), chatBiSuccessfulRun[0]!)
+    const gap = reduceEvent(started, chatBiSuccessfulRun[2]!)
+    const recovered = reduceEvent(gap, chatBiSuccessfulRun[1]!)
+    const continued = reduceEvent(recovered, chatBiSuccessfulRun[2]!)
+    expect(continued.streams['run-1']).toMatchObject({ blocked: false, lastSequence: 3 })
+    expect(continued.toolCalls['tool-call-1']?.status).toBe('completed')
+  })
+
   it('protects a terminal run from later progress', () => {
     const completed = replayEvents(chatBiSuccessfulRun, createInitialState())
     const late = { ...chatBiSuccessfulRun[1]!, eventId: 'evt-late', sequence: 6 }

@@ -101,18 +101,18 @@
 
 ### 3.4 验收标准
 
-- [ ] 三类事件源均能转换成 canonical events；
-- [ ] 成功、失败、取消、工具调用可以确定性重建；
-- [ ] 重复 replay 同一事件不会产生重复实体；
-- [ ] tool result 不依赖工具名匹配；
-- [ ] 至少表达一个并行或父子 Activity 示例；
-- [ ] 至少表达一个 intervention 示例，即使 ChatBI 暂时不生产该事件；
-- [ ] 未映射数据有命名空间扩展规则，而非随意塞入核心字段；
-- [ ] 团队可以用 canonical state 描述三个场景的期望 UI；
-- [ ] core reducer 和 fixtures 在纯 Node 环境运行，无 React、Vue、DOM 或浏览器全局依赖；
-- [ ] adapter contract 不包含 React/Vue element、hook 或 component 类型；
-- [ ] CI 能阻止 core/runtime/adapter 引入 UI 框架依赖；
-- [ ] PRD 中 MVP 范围和非目标得到确认。
+- [x] 三类事件源均能转换成 canonical events；
+- [x] 成功、失败、取消、工具调用可以确定性重建；
+- [x] 重复 replay 同一事件不会产生重复实体；
+- [x] tool result 不依赖工具名匹配；
+- [x] 至少表达一个并行或父子 Activity 示例；
+- [x] 至少表达一个 intervention 示例，即使 ChatBI 暂时不生产该事件；
+- [x] 未映射数据有命名空间扩展规则，而非随意塞入核心字段；
+- [x] 团队可以用 canonical state 描述三个场景的期望 UI；
+- [x] core reducer 和 fixtures 在纯 Node 环境运行，无 React、Vue、DOM 或浏览器全局依赖；
+- [x] adapter contract 不包含 React/Vue element、hook 或 component 类型；
+- [x] CI 能阻止 core/runtime/adapter 引入 UI 框架依赖；
+- [x] PRD 中 MVP 范围和非目标得到确认。
 
 ### 3.5 退出条件
 

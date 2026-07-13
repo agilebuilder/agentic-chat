@@ -25,12 +25,10 @@
 
 ## 下一步
 
-- 添加失败、取消和断流续传原始 fixture；
-- 将 ChatBI runtime validation 与 adapter diagnostic 完善为明确契约；
-- 定义并测试 snapshot schema 与 replay 等价性；
-- 引入第二、第三类事件源验证 canonical model；
-- 补充 package dependency boundary 自动检查。
+- P0 已通过，详见 `05-p0-acceptance-report.md`；
+- 下一阶段实现 ChatBI HTTP command client、运行状态 selectors 和线性 React Activity UI；
+- 在进入公共 API 前继续完成 retry、结果引用和 runtime validation ADR。
 
 ## 当前验证
 
-执行 `pnpm verify`，TypeScript project references 构建通过，7 项 reducer/adapter 测试通过。
+执行 `pnpm verify`，依赖边界、TypeScript project references 和全部 reducer/adapter/runtime 测试通过。最终测试数量以验收时命令输出为准。

@@ -4,6 +4,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/runtime" },
     { "path": "./packages/adapter-chatbi" },
+    { "path": "./packages/adapter-ag-ui" },
     { "path": "./packages/testkit" }
   ]
 }

@@ -12,6 +12,7 @@
 - 发现 sequence gap 时阻塞对应 stream，等待 replay 或 snapshot，不按到达顺序静默应用。
 - Timestamp 只用于展示，不决定事件顺序。
 - 终态 Run 不接受普通进度事件。
+- 未进入核心模型但占用来源 sequence 的事件转换为 `source.observed`，以保留顺序和诊断；来源扩展键必须使用协议或产品命名空间，不允许核心 reducer 依赖任意扩展字段。
 
 ## ChatBI 事实依据
 
@@ -19,7 +20,12 @@ ChatBI 1.0 持久化 `event_id` 和单 Run `sequence`，支持 `after_sequence` 
 
 ## 待验证
 
-- 第二、第三类事件源没有严格 sequence 时的降级契约；
 - retry 是同一 Run 的 attempt 还是新 Run；
 - snapshot schema 与增量 replay 的等价规则；
 - Message、最终结果和 Artifact 的正式引用关系。
+
+## 多来源验证结论
+
+- ChatBI 提供单 Run 严格 sequence，adapter 原样保留；
+- AG-UI 规范要求按接收顺序处理，但基础事件没有 ChatBI 式 sequence/event ID；首版 adapter 在一次已排序的订阅流内按 source index 合成 canonical sequence 和确定性 event ID，并将这种恢复能力声明为降级能力；
+- 编码 Agent fixture 可以用通用 Activity parent、并行 root、ToolCall 和 Intervention 表达，不需要加入来源专属核心字段。

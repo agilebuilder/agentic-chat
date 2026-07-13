@@ -17,6 +17,8 @@ describe('ChatBI adapter', () => {
   })
 
   it('keeps heartbeat out of canonical activities', () => {
-    expect(adaptChatBiEvent(raw('heartbeat', 3)).diagnostic?.code).toBe('unsupported_event')
+    const result = adaptChatBiEvent(raw('heartbeat', 3))
+    expect(result.event?.type).toBe('source.observed')
+    expect(result.diagnostic?.code).toBe('unsupported_event')
   })
 })

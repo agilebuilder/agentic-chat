@@ -1,4 +1,15 @@
 import type { AgentError, CanonicalEvent } from '@agentic-chat/core'
+import type { AdapterCapabilities } from '@agentic-chat/runtime'
+
+export const chatBiCapabilities: AdapterCapabilities = {
+  sequence: 'strict-per-run',
+  replay: 'live-resume',
+  cancel: true,
+  resume: false,
+  retry: false,
+  intervention: false,
+  artifacts: true,
+}
 
 export type ChatBiEventType = 'run.started' | 'thinking.delta' | 'tool.started' | 'tool.finished' | 'result' | 'artifact.created' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'heartbeat'
 
@@ -19,7 +30,10 @@ export interface AdapterDiagnostic {
   message: string
 }
 
-export type AdaptResult = { event: CanonicalEvent; diagnostic?: never } | { event?: never; diagnostic: AdapterDiagnostic }
+export interface AdaptResult {
+  event?: CanonicalEvent
+  diagnostic?: AdapterDiagnostic
+}
 
 const envelope = (event: ChatBiRunEvent) => ({
   schemaVersion: '0.1' as const,
@@ -57,7 +71,9 @@ export function adaptChatBiEvent(event: ChatBiRunEvent): AdaptResult {
     case 'run.cancelled': return { event: { ...base, type: 'run.cancelled', data: {} } }
     case 'heartbeat':
     case 'artifact.created':
-      return { diagnostic: { code: 'unsupported_event', message: `${event.event_type} is not part of the P0 canonical slice` } }
+      return {
+        event: { ...base, type: 'source.observed', data: { sourceType: event.event_type, payload: event.payload } },
+        diagnostic: { code: 'unsupported_event', message: `${event.event_type} is preserved but not modeled in the P0 canonical slice` },
+      }
   }
 }
-

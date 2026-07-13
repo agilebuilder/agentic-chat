@@ -18,11 +18,31 @@ importers:
         specifier: ^4.0.0
         version: 4.1.10(@types/node@24.13.3)(vite@8.1.4(@types/node@24.13.3))
 
+  packages/adapter-ag-ui:
+    dependencies:
+      '@agentic-chat/core':
+        specifier: workspace:*
+        version: link:../core
+      '@agentic-chat/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@agentic-chat/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/adapter-chatbi:
     dependencies:
       '@agentic-chat/core':
         specifier: workspace:*
         version: link:../core
+      '@agentic-chat/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@agentic-chat/testkit':
+        specifier: workspace:*
+        version: link:../testkit
 
   packages/core: {}
 
