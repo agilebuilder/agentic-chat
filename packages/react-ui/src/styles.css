@@ -14,6 +14,7 @@
 .ac-composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--ac-border); }
 .ac-composer textarea { flex: 1; resize: vertical; border: 1px solid var(--ac-border); border-radius: 8px; padding: 8px; font: inherit; }
 .ac-composer button, .ac-cancel { border: 0; border-radius: 8px; padding: 8px 14px; background: var(--ac-accent); color: #fff; cursor: pointer; }
+.ac-composer textarea:focus-visible, .ac-composer button:focus-visible, .ac-cancel:focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
 .ac-composer button:disabled, .ac-cancel:disabled { cursor: default; opacity: .55; }
 .ac-cancel { margin: 0 16px 12px; background: #b42318; }
 .ac-connection { color: #92400e; background: #fffbeb; }
