@@ -476,6 +476,16 @@ vue-ui（未来）      → vue + core/runtime
 
 ## 10. ChatBI 集成架构
 
+### 10.1 本地参考项目
+
+开发环境中的 ChatBI 仓库位于：
+
+```text
+D:\Products\agentic\chatbi
+```
+
+该仓库是 P0/P1 的首要参考宿主，可用于核对真实事件、恢复接口、取消语义、现有领域组件和集成边界。此绝对路径仅是当前本地工作区约定，不得写入发布代码、测试 fixture、构建配置或运行时默认值；CI 和其他开发环境应通过环境变量、workspace 配置或独立脱敏 fixture 工作。
+
 ChatBI 当前事件可通过 `adapter-chatbi` 映射：
 
 | ChatBI event | Canonical 目标 |
