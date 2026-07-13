@@ -1,6 +1,6 @@
 # Agentic Chat UI 产品需求文档（PRD）
 
-> 状态：Draft v0.1  
+> 状态：Draft v0.2
 > 面向版本：从 MVP 到 1.0  
 > 产品定位：面向多步骤、长时运行、可恢复、可干预 AI Agent 的框架无关运行核心与前端交互基础设施；官方首期提供 React 实现
 
@@ -12,7 +12,15 @@ Agentic Chat UI 是一套面向 Agent Loop 的开源交互基础设施，帮助�
 
 它不只展示“用户消息和助手回答”，而是原生表达一次 Agent 任务中的计划、推理摘要、工具执行、并行步骤、任务进度、人工确认、异常恢复和产物交付。
 
-### 1.2 产品愿景
+### 1.2 当前实现目标
+
+项目当前首先交付 **可靠的 Agent Run UI runtime**，服务已经拥有 Agent 后端、使用 React 构建产品、但缺少生产级运行时间线与恢复体验的开发团队。
+
+首个可验证闭环是：用户在 ChatBI 发起一次运行，能够持续看到运行状态、公开状态摘要和工具执行；可以取消；断线或刷新后在后端能力允许时恢复；最终结果继续使用业务 renderer 展示。
+
+当前阶段不以“覆盖所有 Agent 交互”为目标。Task、通用 Intervention、Artifact 工作区、子 Agent 和多个正式 adapter 属于后续验证能力，不阻塞 ChatBI MVP。
+
+### 1.3 产品愿景
 
 让开发者不必为每个 Agent 产品重复实现复杂的运行态 UI，使最终用户能够：
 
@@ -22,7 +30,7 @@ Agentic Chat UI 是一套面向 Agent Loop 的开源交互基础设施，帮助�
 - 检查过程依据和最终产物；
 - 对失败、重试、取消和部分完成有稳定预期。
 
-### 1.3 产品边界
+### 1.4 产品边界
 
 本项目负责 Agent 与用户之间的交互呈现、前端运行状态和协议适配，不负责：
 
@@ -34,7 +42,22 @@ Agentic Chat UI 是一套面向 Agent Loop 的开源交互基础设施，帮助�
 
 项目可以与上述系统集成，但不替代它们。
 
-### 1.4 框架支持策略
+### 1.5 端到端能力边界
+
+前端库可以保证 reducer 确定性、事件去重、状态转换诊断、安全 fallback 和细粒度渲染，但不能仅靠前端保证任务持久化、命令幂等或权限安全。
+
+以下能力必须由后端或宿主共同提供：
+
+- 运行中刷新恢复与历史事件完整性；
+- 断线续传所需 cursor/sequence 和 replay；
+- send、retry、approval 等命令的端到端幂等；
+- cancel、resume 的真实执行语义；
+- Artifact 的鉴权、有效期和内容安全；
+- Intervention 的权限校验与防重复执行。
+
+Adapter 必须通过 capability 声明实际支持程度，UI 不得把缺失的后端能力包装成已保证能力。
+
+### 1.6 框架支持策略
 
 - **核心框架无关**：领域模型、事件、reducer、runtime、transport、adapter、selectors 和 testkit 不依赖 React、Vue 或 DOM；
 - **React-first**：首个稳定 UI 实现面向 React，React 的成熟度不被其他框架阻塞；
@@ -126,6 +149,22 @@ Agent 诊断问题、运行检查、提出修复方案并等待授权。UI 需�
 - **Notice**：不一定中断 Run 的通知、警告或风险提示。
 
 ## 7. 功能需求
+
+### 7.0 版本范围
+
+| 能力 | P1 ChatBI MVP | P2 Alpha | P3 Beta |
+|---|---|---|---|
+| Run 生命周期、错误、取消 | 完整闭环 | 稳定公共 API | 多后端一致性 |
+| Activity | 线性时间线；模型验证父子关系 | 基础聚合与扩展 | 并行、父子、subagent |
+| ToolCall | 开始/完成/失败与 fallback | 参数、结果、耗时和 renderer | partial、retry、attempt |
+| 状态与 reasoning summary | 支持 | 完善 | 多后端映射规范 |
+| 恢复 | ChatBI 支持范围内 replay | 通用 runtime contract | snapshot + delta 等价性 |
+| Task | 不实现，仅保留模型验证 | 基础列表 | revision、依赖和阻塞 |
+| Intervention | 不实现通用 UI，仅 fixture 验证 | 可选 confirm | 完整 HITL |
+| Artifact | 由 ChatBI 领域 renderer 承载 | 基础卡片/面板 | version/provenance/preview |
+| Adapter | ChatBI；另两类 fixture | 对外 adapter contract | 至少三个生产风格 adapter |
+
+P1 的任何新增功能必须直接服务 ChatBI 闭环或验证 canonical model 的关键不变量；否则默认进入 P2 或 P3。
 
 ### 7.1 会话与消息
 
@@ -311,6 +350,8 @@ Agent 诊断问题、运行检查、提出修复方案并等待授权。UI 需�
 - 至少三个差异明显的后端事件源可通过 adapter 接入；
 - 新示例项目可在 30 分钟内完成基础接入；
 - 至少一个外部或独立宿主不修改核心包即可注册领域 renderer。
+
+在 P1 阶段，首要成功指标是 ChatBI 能使用公开 runtime contract 完成提交、运行展示、工具关联、取消、断流续传和结果展示；不以功能数量或包数量作为成功指标。
 
 ### 11.2 质量
 

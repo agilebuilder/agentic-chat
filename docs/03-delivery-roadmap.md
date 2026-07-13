@@ -1,20 +1,20 @@
 # Agentic Chat UI 分阶段交付与验收计划
 
-> 状态：Draft v0.1  
+> 状态：Draft v0.2
 > 原则：每个阶段都交付可运行、可验证的垂直切片；未通过退出标准，不扩大下一阶段范围
 
 ## 1. 阶段划分总览
 
 | 阶段 | 名称 | 核心目标 | 建议周期（单人全职） |
 |---|---|---|---:|
-| P0 | 发现与协议建模 | 用真实事件验证框架无关 canonical model | 1–2 周 |
-| P1 | ChatBI MVP | 在真实项目跑通可靠的 Run UI | 3–5 周 |
-| P2 | 可复用 Alpha | 抽取 headless、默认 UI 和扩展机制 | 4–6 周 |
-| P3 | 多后端 Beta | 证明 adapter-first 和复杂 Agent 能力 | 5–8 周 |
-| P4 | 开源 1.0 | 达到可稳定采用的产品与工程质量 | 4–8 周 |
+| P0 | 发现与协议建模 | 用真实事件验证框架无关 canonical model | 2–4 周 |
+| P1 | ChatBI MVP | 在真实项目跑通可靠的 Run UI | 5–8 周 |
+| P2 | 可复用 Alpha | 抽取 headless、默认 UI 和扩展机制 | 6–10 周 |
+| P3 | 多后端 Beta | 证明 adapter-first 和复杂 Agent 能力 | 8–12 周 |
+| P4 | 开源 1.0 | 达到可稳定采用的产品与工程质量 | 8–12 周 |
 | P5 | 生态扩展 | 扩展协议、宿主、renderer 和社区 | 持续 |
 
-周期是规划参考，不是发布日期承诺。并行投入可以缩短日历时间，但协议建模、真实集成和反馈不可完全并行化。
+周期是单人全职、包含工程质量工作的规划参考，不是发布日期承诺；整体约 7–11 个月。它不包含宿主后端大规模改造、专职视觉设计和等待外部试用反馈的时间。并行投入可以缩短日历时间，但协议建模、真实集成和反馈不可完全并行化。
 
 ## 2. 全局质量档位
 
@@ -76,6 +76,9 @@
 - 实现纯 reducer 原型；
 - 建立脱敏 fixtures 和 snapshot tests；
 - 写首批 ADR：canonical model、事件/快照、序列作用域。
+- 明确 Message、Run、Activity、ToolCall、Task 和 Artifact 的所有权、引用关系及单一事实源；
+- 分离 transport cursor、canonical sequence 和 snapshot/entity revision；
+- 定义独立 `CanonicalSnapshot`，禁止直接持久化内部 store；
 - 建立包依赖边界检查，禁止 core 导入 React、Vue、DOM 或 transport 实现。
 
 #### 设计
@@ -146,6 +149,8 @@
 - composer 发送/停止状态；
 - 基础 responsive 和主题 tokens。
 
+P1 UI 默认只实现线性 Activity 时间线。父子、并行、Task、通用 Intervention 和完整 Artifact 工作区只在模型/fixture 层验证，不扩大本阶段 UI 范围。
+
 #### ChatBI 领域集成
 
 - QueryResult renderer；
@@ -192,6 +197,9 @@
 - 独立 Python SDK；
 - Claudian 生产替换；
 - 宣称公共 API 稳定。
+- 通用 Thread 管理产品；
+- 完整 Artifact 工作区；
+- 并行或子 Agent 的正式交互设计。
 
 ## 5. P2：可复用 Alpha
 
@@ -357,6 +365,8 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 ### 7.1 目标
 
 将 Beta 打磨为外部团队可以审慎用于生产项目的稳定版本 D4。
+
+1.0 稳定范围优先覆盖 Run、Activity、ToolCall、Message、adapter/runtime contract。Task、Artifact、复杂 Intervention 或 subagent 若尚未经过足够真实集成，可以保留在 beta/experimental 入口，不为追求表面完整而冻结不成熟语义。
 
 ### 7.2 工作内容
 

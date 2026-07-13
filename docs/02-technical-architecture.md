@@ -1,6 +1,6 @@
 # Agentic Chat UI 技术架构文档
 
-> 状态：Draft v0.1  
+> 状态：Draft v0.2
 > 目标：定义项目边界、内部模型、包组织、技术栈和关键工程约束
 
 ## 1. 架构目标
@@ -226,6 +226,20 @@ interface AgenticState {
 
 Normalized store 可避免每个流式 token 复制整棵嵌套树，并便于细粒度 selector。
 
+### 4.1 实体关系与单一事实源
+
+P0 必须通过 ADR 固化以下关系，避免同一内容在 Message、Activity 和 Artifact 中各自维护一份状态：
+
+- Thread 是 Message 和 Run 的会话容器；
+- Run 表示一次执行，retry 默认产生同一目标下的新 attempt，是否创建新 Run 由协议 ADR 明确；
+- Activity 表示执行过程节点，父子关系只由 `parentId` 表达，展示顺序不由 timestamp 推断；
+- ToolCall 是工具执行的事实源，tool Activity 只引用 `toolCallId`，不复制工具状态；
+- Task 表示计划，不等同于 Activity；二者只能通过显式关联 ID 建立关系；
+- Artifact 是独立可交付实体，通过来源引用关联 Run/Activity；Message 只引用 Artifact；
+- 最终回答以 Message 为可见内容事实源，Activity 可以引用它，但不得复制正文。
+
+具体基数、删除策略、attempt 语义和分支运行关系必须在实现 reducer 前由 fixtures 验证并记录，不允许由 UI 组件临时推断。
+
 ## 5. 事件模型与状态重建
 
 ### 5.1 Event envelope
@@ -262,7 +276,19 @@ interface EventEnvelope<TType extends string, TData> {
 加载最近 snapshot → replay snapshot 之后的 events → 订阅 live events
 ```
 
-### 5.3 Reducer 不变量
+Snapshot 使用独立、带版本的 `CanonicalSnapshot` schema，不直接序列化内部 store 或状态库结构。内部 normalized state 可以重构而不改变持久化格式。
+
+### 5.3 Cursor、sequence 与 revision
+
+三种概念必须分离：
+
+- transport cursor：用于重连和向服务端请求续传；
+- canonical sequence：用于诊断某个明确作用域内的事件顺序；
+- entity/snapshot revision：用于判断 patch 或 snapshot 的基线。
+
+Adapter 必须声明 sequence 作用域。Timestamp 只用于展示，不作为事件排序依据。首版对无法安全应用的 gap/out-of-order 事件应暂停对应 stream、产生 typed diagnostic 并请求 replay/snapshot；不得静默按到达顺序修补权威状态。没有顺序保证的协议只能声明降级能力。
+
+### 5.4 Reducer 不变量
 
 - 相同 `eventId` 幂等；
 - 实体 ID 在生命周期内稳定；
@@ -292,6 +318,10 @@ Adapter 通过 capability declaration 表明支持项。UI 根据 capability 显
 
 命令使用 idempotency key，尤其是 send、approval 和 retry，防止网络重试造成重复执行。
 
+职责边界如下：Adapter 负责协议语义转换，Transport/client 负责连接和 API 调用，Runtime 负责命令 pending/receipt/diagnostic，Host 负责鉴权和业务权限。Adapter 不应逐步吸收路由、凭据、文件存储或业务状态。
+
+前端 idempotency key 只提供关联手段；只有后端持久化并执行去重时，才能宣称端到端幂等。
+
 ## 7. Renderer 扩展体系
 
 Renderer registry 按语义而不是外部事件名注册：
@@ -314,6 +344,11 @@ interface RendererRegistry {
 - renderer 可声明 compact/full/panel 等展示模式；
 - 不可信 iframe 或 HTML 由独立 sandbox renderer 处理；
 - ChatBI 的 SQL、图表、结果表放在 ChatBI integration package 或 ChatBI 仓库。
+- registry 必须是 runtime/provider 实例级对象，不得使用进程级可变单例，以保证多实例、SSR 和测试隔离。
+
+### 7.1 可见内容分级
+
+Canonical model 明确区分 `status_update`、`reasoning_summary`、`debug_log` 和不可进入前端协议的内部 trace。Adapter 不得仅根据字段名或文本内容猜测可见级别；无法确定时按 debug/hidden 降级，而不是作为 reasoning 展示。
 
 ## 8. 建议 Monorepo 组织
 
@@ -563,7 +598,8 @@ Runtime 提供可选 diagnostic channel：
 - 包遵循 semantic versioning；
 - canonical schema 使用独立 `schemaVersion`；
 - adapter 声明其支持的外部协议版本范围；
-- 公共事件类型只增不改，破坏性语义通过 major version；
+- 1.0 前允许基于真实 fixtures 调整事件和实体语义，但必须提供变更记录和 fixture 迁移；
+- 1.0 后新增 union member 也视为需要 unknown fallback 的兼容变化，破坏性语义通过 major version；
 - experimental API 使用明确前缀或单独入口；
 - fixtures 和 conformance suite 是协议升级的回归基线；
 - 使用 Changesets 维护变更记录和迁移说明。
