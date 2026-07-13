@@ -14,6 +14,7 @@ export interface EventEnvelope<TType extends string, TData> {
 
 export type CanonicalEvent =
   | EventEnvelope<'run.started', Record<string, never>>
+  | EventEnvelope<'run.status.changed', { status: 'running' | 'awaiting_input' | 'paused' }>
   | EventEnvelope<'status.delta', { activityId: string; content: string }>
   | EventEnvelope<'activity.started', { activityId: string; kind: 'workflow' | 'subagent' | 'custom'; title?: string; parentActivityId?: string }>
   | EventEnvelope<'activity.completed', { activityId: string }>
@@ -25,7 +26,7 @@ export type CanonicalEvent =
   | EventEnvelope<'result.delta', { delta: string }>
   | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string }>
   | EventEnvelope<'intervention.resolved', { interventionId: string; response: unknown }>
-  | EventEnvelope<'source.observed', { sourceType: string; payload?: unknown }>
+  | EventEnvelope<'source.observed', { sourceType: string }>
   | EventEnvelope<'run.completed', Record<string, never>>
   | EventEnvelope<'run.failed', { error: AgentError }>
   | EventEnvelope<'run.cancelled', Record<string, never>>

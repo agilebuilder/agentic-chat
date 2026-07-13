@@ -1,7 +1,7 @@
 # P0 发现与协议建模验收报告
 
 > 日期：2026-07-13  
-> 结论：通过，可以进入 P1 ChatBI MVP。
+> 结论：核心建模与本地工程验收通过，可以进入 P1 ChatBI MVP；远端 CI 首次运行属于仓库托管待办。
 
 ## 1. 已验证事件源
 
@@ -47,7 +47,8 @@
 - [x] 未映射事件有保序和命名空间规则；
 - [x] core/runtime/adapter 在纯 Node 环境运行；
 - [x] adapter contract 不包含 UI 框架类型；
-- [x] 自动边界检查阻止核心包引入 React/Vue；
+- [x] 自动边界检查已纳入本地 `pnpm verify`，阻止核心包引入 React/Vue；
+- [ ] 远端 CI 实际执行该检查；当前仓库没有 remote，确定 GitHub/GitLab/Gitee 后配置并完成首次运行；
 - [x] MVP 范围和非目标已写入 PRD/路线图；
 - [x] 已有低保真默认布局和关键状态描述。
 
@@ -59,5 +60,17 @@
 - runtime command 的 pending/receipt/error 状态；
 - runtime validation 库和错误分级；
 - ChatBI adapter 的实际 HTTP command client。
+- `seenEventIds` 暂不在终态清理，以保留历史 replay 幂等；P2 与 snapshot compaction、Run 卸载策略一起制定回收规则。
 
 这些事项不阻塞线性的 ChatBI Run UI MVP，但在对应能力进入公共 API 前必须完成 ADR。
+
+## 6. P0 提交前加固
+
+- started 语义重入不会覆盖 Run、Activity 或 ToolCall；
+- 已完成 ToolCall 不会被重复 started 复活，参数增量只使用 `tool.args.delta`；
+- ToolCall 通过 activityId/索引直接定位 Activity；
+- diagnostic 在 runtime state 中最多保留最近 200 条；
+- `thinking.delta` 在公开语义明确前按 debug-only 的 `source.observed` 降级；
+- Intervention 与 Run 状态联动改为显式事件，详见 ADR-0002；
+- runtime 同时暴露 capabilities 与 commands，并在构造时校验二者一致；
+- `source.observed` 默认静默且不携带原始 payload。

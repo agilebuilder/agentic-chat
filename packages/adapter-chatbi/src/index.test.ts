@@ -21,4 +21,11 @@ describe('ChatBI adapter', () => {
     expect(result.event?.type).toBe('source.observed')
     expect(result.diagnostic?.code).toBe('unsupported_event')
   })
+
+  it('hides thinking.delta until its visibility semantics are explicit', () => {
+    const result = adaptChatBiEvent(raw('thinking.delta', 2, { payload: { content: 'internal detail' } }))
+    expect(result.event).toMatchObject({ type: 'source.observed', data: { sourceType: 'thinking.delta' } })
+    expect(result.diagnostic?.code).toBe('unsupported_event')
+    expect(result.event).not.toHaveProperty('data.payload')
+  })
 })

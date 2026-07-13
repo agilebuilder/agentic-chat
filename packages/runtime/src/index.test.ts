@@ -15,4 +15,20 @@ describe('runtime external store contract', () => {
     expect(runtime.getSnapshot().runs['run-1']?.status).toBe('running')
     unsubscribe()
   })
+
+  it('exposes capabilities and commands together', () => {
+    const send = vi.fn(async () => ({ commandId: 'command-1', accepted: true }))
+    const runtime = createRuntime({
+      capabilities: { send: true, sequence: 'strict-per-run', replay: 'live-resume', cancel: false, resume: false, retry: false, intervention: false, artifacts: false },
+      commands: { send },
+    })
+    expect(runtime.capabilities.send).toBe(true)
+    expect(runtime.commands.send).toBe(send)
+  })
+
+  it('rejects a capability without its command implementation', () => {
+    expect(() => createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'live-resume', cancel: true, resume: false, retry: false, intervention: false, artifacts: false },
+    })).toThrow('Capability/command mismatch for cancelRun')
+  })
 })

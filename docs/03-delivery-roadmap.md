@@ -111,7 +111,7 @@
 - [x] 团队可以用 canonical state 描述三个场景的期望 UI；
 - [x] core reducer 和 fixtures 在纯 Node 环境运行，无 React、Vue、DOM 或浏览器全局依赖；
 - [x] adapter contract 不包含 React/Vue element、hook 或 component 类型；
-- [x] CI 能阻止 core/runtime/adapter 引入 UI 框架依赖；
+- [ ] 代码托管平台 CI 能阻止 core/runtime/adapter 引入 UI 框架依赖；本地 `pnpm verify` 已包含同一检查，待配置 remote 后完成首次 CI 验证；
 - [x] PRD 中 MVP 范围和非目标得到确认。
 
 ### 3.5 退出条件

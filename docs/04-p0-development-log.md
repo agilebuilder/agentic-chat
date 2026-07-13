@@ -32,3 +32,13 @@
 ## 当前验证
 
 执行 `pnpm verify`，依赖边界、TypeScript project references 和全部 reducer/adapter/runtime 测试通过。最终测试数量以验收时命令输出为准。
+
+## 提交前加固
+
+- 增加 Run、Activity、ToolCall 的语义重入保护；
+- 增加 ToolCall 到 Activity 的直接索引，移除完成路径的全表扫描；
+- diagnostics 改为有界保留；
+- runtime 暴露并校验 capabilities/commands；
+- `thinking.delta` 和 `source.observed` 改为默认静默且不透传 raw payload；
+- Intervention 不再隐式驱动 Run，改用显式状态事件；
+- 远端 CI 因仓库尚未配置 remote 保持为公开待办，不再计为已完成验收项。

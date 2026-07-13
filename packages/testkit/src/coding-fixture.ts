@@ -7,6 +7,8 @@ export type CodingFixtureEvent =
   | { type: 'tool_finished'; callId: string; output: unknown }
   | { type: 'approval_requested'; id: string; prompt: string; activityId: string }
   | { type: 'approval_resolved'; id: string; response: unknown }
+  | { type: 'run_waiting' }
+  | { type: 'run_resumed' }
   | { type: 'activity_finished'; id: string }
   | { type: 'run_finished' }
 
@@ -16,8 +18,10 @@ export const codingAgentSourceFixture: CodingFixtureEvent[] = [
   { type: 'subagent_started', id: 'subagent-code', title: '检查实现' },
   { type: 'tool_started', activityId: 'tool-test', callId: 'call-test', name: 'shell', parentId: 'subagent-tests' },
   { type: 'tool_finished', callId: 'call-test', output: '4 passed' },
+  { type: 'run_waiting' },
   { type: 'approval_requested', id: 'approval-1', prompt: '允许修改文件？', activityId: 'subagent-code' },
   { type: 'approval_resolved', id: 'approval-1', response: 'approved' },
+  { type: 'run_resumed' },
   { type: 'activity_finished', id: 'subagent-tests' },
   { type: 'activity_finished', id: 'subagent-code' },
   { type: 'run_finished' },
@@ -33,6 +37,8 @@ export function adaptCodingFixture(source: readonly CodingFixtureEvent[]): Canon
       case 'tool_finished': return { ...base, type: 'tool.completed', data: { toolCallId: item.callId, output: item.output } }
       case 'approval_requested': return { ...base, type: 'intervention.requested', data: { interventionId: item.id, kind: 'approval', prompt: item.prompt, activityId: item.activityId } }
       case 'approval_resolved': return { ...base, type: 'intervention.resolved', data: { interventionId: item.id, response: item.response } }
+      case 'run_waiting': return { ...base, type: 'run.status.changed', data: { status: 'awaiting_input' } }
+      case 'run_resumed': return { ...base, type: 'run.status.changed', data: { status: 'running' } }
       case 'activity_finished': return { ...base, type: 'activity.completed', data: { activityId: item.id } }
       case 'run_finished': return { ...base, type: 'run.completed', data: {} }
     }

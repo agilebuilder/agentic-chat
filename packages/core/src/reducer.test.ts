@@ -49,4 +49,43 @@ describe('canonical reducer', () => {
     expect(next.runs['run-1']?.status).toBe('completed')
     expect(next.diagnostics.at(-1)?.code).toBe('invalid_transition')
   })
+
+  it('does not replace an existing run when run.started re-enters with a new event id', () => {
+    const progressed = replayEvents(chatBiSuccessfulRun.slice(0, 2), createInitialState())
+    const duplicateStart: CanonicalEvent = { ...chatBiSuccessfulRun[0]!, eventId: 'evt-start-again', sequence: 3 }
+    const next = reduceEvent(progressed, duplicateStart)
+    expect(next.runs['run-1']?.activityIds).toEqual(['tool-activity-1'])
+    expect(next.toolCalls['tool-call-1']?.status).toBe('running')
+    expect(next.diagnostics.at(-1)?.code).toBe('invalid_transition')
+  })
+
+  it('does not revive a completed tool call or duplicate its activity', () => {
+    const toolCompleted = replayEvents(chatBiSuccessfulRun.slice(0, 3), createInitialState())
+    const repeatedStart: CanonicalEvent = { ...chatBiSuccessfulRun[1]!, eventId: 'evt-tool-again', sequence: 4 }
+    const next = reduceEvent(toolCompleted, repeatedStart)
+    expect(next.toolCalls['tool-call-1']).toMatchObject({ status: 'completed', output: { ok: true } })
+    expect(next.runs['run-1']?.activityIds).toEqual(['tool-activity-1'])
+    expect(next.diagnostics.at(-1)?.code).toBe('invalid_transition')
+  })
+
+  it('rejects duplicate activity starts without appending the activity twice', () => {
+    const events: CanonicalEvent[] = [
+      chatBiSuccessfulRun[0]!,
+      { schemaVersion: '0.1', eventId: 'activity-1', type: 'activity.started', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:01Z', data: { activityId: 'workflow-1', kind: 'workflow', title: '计划' } },
+      { schemaVersion: '0.1', eventId: 'activity-2', type: 'activity.started', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:02Z', data: { activityId: 'workflow-1', kind: 'workflow', title: '重复计划' } },
+    ]
+    const state = replayEvents(events, createInitialState())
+    expect(state.runs['run-1']?.activityIds).toEqual(['workflow-1'])
+    expect(state.activities['workflow-1']?.text).toBe('计划')
+    expect(state.diagnostics.at(-1)?.code).toBe('invalid_transition')
+  })
+
+  it('bounds retained diagnostics', () => {
+    let state = reduceEvent(createInitialState(), chatBiSuccessfulRun[0]!)
+    for (let sequence = 2; sequence <= 205; sequence += 1) {
+      state = reduceEvent(state, { ...chatBiSuccessfulRun[0]!, eventId: `duplicate-start-${sequence}`, sequence })
+    }
+    expect(state.diagnostics).toHaveLength(200)
+    expect(state.streams['run-1']?.lastSequence).toBe(205)
+  })
 })

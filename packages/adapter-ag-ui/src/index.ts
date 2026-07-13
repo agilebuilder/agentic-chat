@@ -2,6 +2,7 @@ import type { CanonicalEvent } from '@agentic-chat/core'
 import type { AdapterCapabilities } from '@agentic-chat/runtime'
 
 export const agUiCapabilities: AdapterCapabilities = {
+  send: false,
   sequence: 'synthesized-stream-order',
   replay: 'none',
   cancel: false,
@@ -50,7 +51,7 @@ export function adaptAgUiEvents(sourceEvents: readonly AgUiEvent[]): AgUiAdaptRe
       case 'TOOL_CALL_START': events.push({ ...base, type: 'tool.started', data: { activityId: `tool:${source.toolCallId}`, toolCallId: source.toolCallId, name: source.toolCallName } }); break
       case 'TOOL_CALL_ARGS': events.push({ ...base, type: 'tool.args.delta', data: { toolCallId: source.toolCallId, delta: source.delta } }); break
       case 'TOOL_CALL_RESULT': events.push({ ...base, type: 'tool.completed', data: { toolCallId: source.toolCallId, output: source.content } }); break
-      default: events.push({ ...base, type: 'source.observed', data: { sourceType: source.type, payload: source } })
+      default: events.push({ ...base, type: 'source.observed', data: { sourceType: source.type } })
     }
   })
   return { events, diagnostics }

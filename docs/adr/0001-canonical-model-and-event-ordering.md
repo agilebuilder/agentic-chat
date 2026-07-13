@@ -1,6 +1,6 @@
 # ADR-0001：Canonical model 与事件顺序
 
-状态：草案，P0 fixture 验证中。
+状态：已接受（P0）。
 
 ## 决策
 
@@ -12,7 +12,12 @@
 - 发现 sequence gap 时阻塞对应 stream，等待 replay 或 snapshot，不按到达顺序静默应用。
 - Timestamp 只用于展示，不决定事件顺序。
 - 终态 Run 不接受普通进度事件。
-- 未进入核心模型但占用来源 sequence 的事件转换为 `source.observed`，以保留顺序和诊断；来源扩展键必须使用协议或产品命名空间，不允许核心 reducer 依赖任意扩展字段。
+- `Activity.order` 是 Activity 首次进入 canonical state 的稳定展示顺序，不表示依赖关系或真实起止先后；父子关系使用 `parentId`，时间使用 startedAt/endedAt。
+- 已存在的 Run、Activity、ToolCall 不接受第二次 started；重放幂等依赖 event ID，语义重入产生 diagnostic 且不得覆盖已有数据。Tool retry 必须使用新 toolCallId 或未来显式 attempt。
+- ToolCall 保存 `activityId`，完成/失败事件通过直接引用更新 Activity，不扫描实体表。
+- 未进入核心模型但占用来源 sequence 的事件转换为 `source.observed`，以保留顺序；它默认不进入 UI，只允许 debug inspector 显示类型和安全元数据。
+- `source.observed` 不携带原始 payload。原始事件只允许进入显式开启、经过宿主脱敏的独立 debug side channel；来源扩展键必须使用协议或产品命名空间，核心 reducer 不依赖任意扩展字段。
+- heartbeat 属于 transport，不应进入 canonical stream；若来源协议把它作为占 sequence 的正式事件，adapter 仅以无 payload 的 `source.observed` 保序。
 
 ## ChatBI 事实依据
 

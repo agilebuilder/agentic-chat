@@ -2,6 +2,7 @@ import type { AgentError, CanonicalEvent } from '@agentic-chat/core'
 import type { AdapterCapabilities } from '@agentic-chat/runtime'
 
 export const chatBiCapabilities: AdapterCapabilities = {
+  send: true,
   sequence: 'strict-per-run',
   replay: 'live-resume',
   cancel: true,
@@ -54,7 +55,10 @@ export function adaptChatBiEvent(event: ChatBiRunEvent): AdaptResult {
   const base = envelope(event)
   switch (event.event_type) {
     case 'run.started': return { event: { ...base, type: 'run.started', data: {} } }
-    case 'thinking.delta': return { event: { ...base, type: 'status.delta', data: { activityId: `status:${event.run_id}`, content: typeof event.payload.content === 'string' ? event.payload.content : '' } } }
+    case 'thinking.delta': return {
+      event: { ...base, type: 'source.observed', data: { sourceType: event.event_type } },
+      diagnostic: { code: 'unsupported_event', message: 'thinking.delta visibility is unspecified and is hidden by default' },
+    }
     case 'tool.started': {
       if (!event.tool_call_id) return { diagnostic: { code: 'invalid_event', message: 'tool.started requires tool_call_id' } }
       return { event: { ...base, type: 'tool.started', data: { activityId: `tool:${event.tool_call_id}`, toolCallId: event.tool_call_id, name: typeof event.payload.tool_name === 'string' ? event.payload.tool_name : 'unknown' } } }
@@ -72,7 +76,7 @@ export function adaptChatBiEvent(event: ChatBiRunEvent): AdaptResult {
     case 'heartbeat':
     case 'artifact.created':
       return {
-        event: { ...base, type: 'source.observed', data: { sourceType: event.event_type, payload: event.payload } },
+        event: { ...base, type: 'source.observed', data: { sourceType: event.event_type } },
         diagnostic: { code: 'unsupported_event', message: `${event.event_type} is preserved but not modeled in the P0 canonical slice` },
       }
   }

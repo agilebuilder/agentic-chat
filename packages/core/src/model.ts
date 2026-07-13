@@ -59,6 +59,7 @@ export interface Activity {
 export interface ToolCall {
   id: string
   runId: string
+  activityId: string
   name: string
   status: 'running' | 'completed' | 'failed' | 'cancelled'
   input?: unknown
@@ -124,6 +125,7 @@ export interface AgenticState {
   runs: Record<string, AgentRun>
   activities: Record<string, Activity>
   toolCalls: Record<string, ToolCall>
+  activityByToolCallId: Record<string, string>
   results: Record<string, unknown>
   interventions: Record<string, Intervention>
   tasks: Record<string, AgentTask>
@@ -133,5 +135,5 @@ export interface AgenticState {
 }
 
 export function createInitialState(): AgenticState {
-  return { threads: {}, messages: {}, runs: {}, activities: {}, toolCalls: {}, results: {}, interventions: {}, tasks: {}, artifacts: {}, streams: {}, diagnostics: [] }
+  return { threads: {}, messages: {}, runs: {}, activities: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, artifacts: {}, streams: {}, diagnostics: [] }
 }
