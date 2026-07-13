@@ -36,6 +36,18 @@ importers:
         specifier: ^4.0.0
         version: 4.1.10(@types/node@24.13.3)(vite@8.1.4(@types/node@24.13.3))
 
+  apps/node-harness:
+    dependencies:
+      '@agentic-chat/core':
+        specifier: workspace:^
+        version: link:../../packages/core
+      '@agentic-chat/runtime':
+        specifier: workspace:^
+        version: link:../../packages/runtime
+      '@agentic-chat/testkit':
+        specifier: workspace:^
+        version: link:../../packages/testkit
+
   apps/playground:
     dependencies:
       '@agentic-chat/core':
@@ -67,27 +79,27 @@ importers:
   packages/adapter-ag-ui:
     dependencies:
       '@agentic-chat/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@agentic-chat/runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime
     devDependencies:
       '@agentic-chat/testkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../testkit
 
   packages/adapter-chatbi:
     dependencies:
       '@agentic-chat/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@agentic-chat/runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime
     devDependencies:
       '@agentic-chat/testkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../testkit
 
   packages/core: {}
@@ -95,10 +107,10 @@ importers:
   packages/react:
     dependencies:
       '@agentic-chat/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@agentic-chat/runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime
       react:
         specifier: '>=18 <20'
@@ -107,13 +119,13 @@ importers:
   packages/react-ui:
     dependencies:
       '@agentic-chat/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@agentic-chat/react':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../react
       '@agentic-chat/runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime
       react:
         specifier: '>=18 <20'
@@ -125,13 +137,13 @@ importers:
   packages/runtime:
     dependencies:
       '@agentic-chat/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
 
   packages/testkit:
     dependencies:
       '@agentic-chat/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
 
 packages:

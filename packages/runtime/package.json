@@ -1,10 +1,16 @@
 {
   "name": "@agentic-chat/runtime",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@agentic-chat/core": "workspace:*" },
+  "description": "Framework-independent runtime and selectors for Agentic Chat UI.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/agilebuilder/agentic-chat.git", "directory": "packages/runtime" },
+  "files": ["dist"],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./package.json": "./package.json" },
+  "publishConfig": { "access": "public" },
+  "dependencies": { "@agentic-chat/core": "workspace:^" },
   "scripts": { "build": "tsc -b", "typecheck": "tsc -b --pretty false" }
 }
-

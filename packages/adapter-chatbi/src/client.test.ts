@@ -55,4 +55,26 @@ describe('ChatBI client/controller', () => {
     expect(fetch.mock.calls[1]?.[0]).toContain('after_sequence=1')
     expect(controller.runtime.getSnapshot().connection.attempt).toBe(2)
   })
+
+  it('does not report connected before the event stream is established', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockRejectedValue(new Error('connection refused'))
+    const controller = createChatBiController({ sessionId: 'session-1', target: { source_id: 'source-1' }, fetch, maxReconnectAttempts: 1 })
+    const statuses: string[] = []
+    controller.runtime.subscribe(() => statuses.push(controller.runtime.getSnapshot().connection.status))
+
+    await expect(controller.connect('run-1')).rejects.toThrow('connection refused')
+
+    expect(statuses).toEqual(['connecting', 'error'])
+  })
+
+  it('keeps a bounded settled result so late waiters observe stream failures', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'run-1', session_id: 'session-1', status: 'queued' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockRejectedValueOnce(new Error('stream failed'))
+    const controller = createChatBiController({ sessionId: 'session-1', target: { source_id: 'source-1' }, fetch, maxReconnectAttempts: 1 })
+
+    const runId = await controller.start('question')
+    await expect(controller.waitForRun(runId)).rejects.toThrow('stream failed')
+    await expect(controller.waitForRun(runId)).rejects.toThrow('stream failed')
+  })
 })

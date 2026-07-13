@@ -1,0 +1,12 @@
+{
+  "name": "@agentic-chat/node-harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@agentic-chat/core": "workspace:^",
+    "@agentic-chat/runtime": "workspace:^",
+    "@agentic-chat/testkit": "workspace:^"
+  },
+  "scripts": { "test": "node index.mjs" }
+}

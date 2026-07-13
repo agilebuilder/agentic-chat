@@ -1,11 +1,17 @@
 {
   "name": "@agentic-chat/react-ui",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
   "type": "module",
-  "exports": { ".": "./src/index.tsx", "./styles.css": "./src/styles.css" },
+  "description": "Styled React components for Agentic Chat UI.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/agilebuilder/agentic-chat.git", "directory": "packages/react-ui" },
+  "files": ["dist"],
+  "sideEffects": ["./dist/styles.css"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./styles.css": "./dist/styles.css", "./package.json": "./package.json" },
+  "publishConfig": { "access": "public" },
   "peerDependencies": { "react": ">=18 <20", "react-dom": ">=18 <20" },
-  "dependencies": { "@agentic-chat/core": "workspace:*", "@agentic-chat/runtime": "workspace:*", "@agentic-chat/react": "workspace:*" },
-  "scripts": { "build": "tsc -b", "typecheck": "tsc -b --pretty false" }
+  "dependencies": { "@agentic-chat/core": "workspace:^", "@agentic-chat/runtime": "workspace:^", "@agentic-chat/react": "workspace:^" },
+  "scripts": { "build": "tsc -b && node ../../scripts/copy-react-ui-assets.mjs", "typecheck": "tsc -b --pretty false" }
 }
-

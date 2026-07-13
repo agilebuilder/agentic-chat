@@ -21,6 +21,7 @@ export interface ChatBiClientOptions {
 export interface StreamOptions {
   afterSequence?: number
   signal?: AbortSignal
+  onOpen?(): void
   onEvent(event: ChatBiRunEvent): void
 }
 
@@ -71,6 +72,7 @@ export class ChatBiClient {
     const response = await this.#fetch(`${this.#baseUrl}/sessions/${sessionId}/runs/${runId}/events?after_sequence=${options.afterSequence ?? 0}`, { headers: { Accept: 'text/event-stream' }, ...(options.signal ? { signal: options.signal } : {}) })
     if (!response.ok || !response.body) throw new Error(`ChatBI event stream failed: ${response.status}`)
     const reader = response.body.getReader()
+    options.onOpen?.()
     const decoder = new TextDecoder()
     let buffer = ''
     while (true) {
@@ -112,6 +114,31 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
   }
   const runtime = createRuntime({ capabilities: chatBiCapabilities, commands })
   const completions = new Map<string, Promise<void>>()
+  const settledCompletions = new Map<string, { ok: true } | { ok: false; error: unknown }>()
+
+  const rememberSettledCompletion = (runId: string, result: { ok: true } | { ok: false; error: unknown }) => {
+    settledCompletions.delete(runId)
+    settledCompletions.set(runId, result)
+    while (settledCompletions.size > 100) {
+      const oldestRunId = settledCompletions.keys().next().value as string | undefined
+      if (oldestRunId === undefined) break
+      settledCompletions.delete(oldestRunId)
+    }
+  }
+
+  const trackCompletion = (runId: string, completion: Promise<void>) => {
+    completions.set(runId, completion)
+    void completion.then(
+      () => {
+        if (completions.get(runId) === completion) completions.delete(runId)
+        rememberSettledCompletion(runId, { ok: true })
+      },
+      (error: unknown) => {
+        if (completions.get(runId) === completion) completions.delete(runId)
+        rememberSettledCompletion(runId, { ok: false, error })
+      },
+    )
+  }
 
   const connect = async (runId: string, signal?: AbortSignal): Promise<void> => {
     const maxAttempts = options.maxReconnectAttempts ?? 3
@@ -121,10 +148,12 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
       runtime.setConnection({ status: attempt === 1 ? 'connecting' : 'reconnecting', attempt })
       try {
         const afterSequence = runtime.getState().streams[runId]?.lastSequence ?? 0
-        runtime.setConnection({ status: 'connected', attempt })
         await client.streamRunEvents(options.sessionId, runId, {
           afterSequence,
           ...(signal ? { signal } : {}),
+          onOpen() {
+            runtime.setConnection({ status: 'connected', attempt })
+          },
           onEvent(sourceEvent) {
             const adapted = adaptChatBiEvent(sourceEvent)
             if (adapted.event) runtime.dispatch(adapted.event)
@@ -153,14 +182,19 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
       const receipt = await runtime.executeCommand('send', () => runtime.commands.send!(message, crypto.randomUUID()))
       runtime.hydrateRun({ id: receipt.commandId, threadId: options.sessionId, status: 'queued', activityIds: [], createdAt: new Date().toISOString() })
       const completion = connect(receipt.commandId, signal)
-      completions.set(receipt.commandId, completion)
+      trackCompletion(receipt.commandId, completion)
       void completion.catch(() => undefined)
       return receipt.commandId
     },
     connect,
     async waitForRun(runId) {
       const completion = completions.get(runId)
-      if (completion) await completion
+      if (completion) {
+        await completion
+        return
+      }
+      const settled = settledCompletions.get(runId)
+      if (settled && !settled.ok) throw settled.error
     },
     async cancel(runId) {
       await runtime.executeCommand(`cancel:${runId}`, () => runtime.commands.cancelRun!(runId))

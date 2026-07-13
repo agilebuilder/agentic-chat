@@ -11,6 +11,6 @@
     "sourceMap": true,
     "composite": true,
     "skipLibCheck": true
-  }
+  },
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
 }
-
