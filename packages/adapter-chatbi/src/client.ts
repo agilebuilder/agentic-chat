@@ -1,0 +1,166 @@
+import { createRuntime, type AgenticRuntime, type CommandReceipt } from '@agentic-chat/runtime'
+import { adaptChatBiEvent, chatBiCapabilities, type ChatBiRunEvent } from './index.js'
+
+export interface ChatBiRun {
+  id: string
+  session_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+}
+
+export interface ChatBiTarget {
+  source_id?: string
+  dataset_id?: string
+}
+
+export interface ChatBiClientOptions {
+  baseUrl?: string
+  fetch?: typeof globalThis.fetch
+}
+
+export interface StreamOptions {
+  afterSequence?: number
+  signal?: AbortSignal
+  onEvent(event: ChatBiRunEvent): void
+}
+
+const parseEvent = (value: unknown): ChatBiRunEvent => {
+  if (typeof value !== 'object' || value === null) throw new Error('Invalid ChatBI event')
+  const event = value as Partial<ChatBiRunEvent>
+  if (event.protocol_version !== '1.0' || typeof event.event_id !== 'string' || typeof event.event_type !== 'string' || typeof event.session_id !== 'string' || typeof event.run_id !== 'string' || typeof event.sequence !== 'number' || typeof event.created_at !== 'string' || typeof event.payload !== 'object' || event.payload === null) {
+    throw new Error('Incompatible ChatBI event protocol')
+  }
+  return event as ChatBiRunEvent
+}
+
+export function parseChatBiSseBuffer(buffer: string): { events: ChatBiRunEvent[]; remainder: string } {
+  const blocks = buffer.split(/\r?\n\r?\n/)
+  const remainder = blocks.pop() ?? ''
+  const events: ChatBiRunEvent[] = []
+  for (const block of blocks) {
+    const data = block.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trimStart()).join('\n')
+    if (data) events.push(parseEvent(JSON.parse(data) as unknown))
+  }
+  return { events, remainder }
+}
+
+export class ChatBiClient {
+  readonly #baseUrl: string
+  readonly #fetch: typeof globalThis.fetch
+
+  constructor(options: ChatBiClientOptions = {}) {
+    this.#baseUrl = (options.baseUrl ?? '/api/v1').replace(/\/$/, '')
+    this.#fetch = options.fetch ?? globalThis.fetch
+  }
+
+  async #request<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await this.#fetch(`${this.#baseUrl}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } })
+    if (!response.ok) throw new Error(`ChatBI request failed: ${response.status}`)
+    return response.json() as Promise<T>
+  }
+
+  createRun(sessionId: string, message: string, target: ChatBiTarget): Promise<ChatBiRun> {
+    return this.#request(`/sessions/${sessionId}/runs`, { method: 'POST', body: JSON.stringify({ message, ...target }) })
+  }
+
+  cancelRun(sessionId: string, runId: string): Promise<ChatBiRun> {
+    return this.#request(`/sessions/${sessionId}/runs/${runId}/cancel`, { method: 'POST' })
+  }
+
+  async streamRunEvents(sessionId: string, runId: string, options: StreamOptions): Promise<void> {
+    const response = await this.#fetch(`${this.#baseUrl}/sessions/${sessionId}/runs/${runId}/events?after_sequence=${options.afterSequence ?? 0}`, { headers: { Accept: 'text/event-stream' }, ...(options.signal ? { signal: options.signal } : {}) })
+    if (!response.ok || !response.body) throw new Error(`ChatBI event stream failed: ${response.status}`)
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
+      const parsed = parseChatBiSseBuffer(buffer)
+      buffer = parsed.remainder
+      parsed.events.forEach(options.onEvent)
+      if (done) return
+    }
+  }
+}
+
+export interface ChatBiControllerOptions extends ChatBiClientOptions {
+  sessionId: string
+  target: ChatBiTarget
+  maxReconnectAttempts?: number
+  reconnectDelayMs?: number
+}
+
+export interface ChatBiController {
+  runtime: AgenticRuntime
+  start(message: string, signal?: AbortSignal): Promise<string>
+  connect(runId: string, signal?: AbortSignal): Promise<void>
+  waitForRun(runId: string): Promise<void>
+  cancel(runId: string): Promise<void>
+}
+
+export function createChatBiController(options: ChatBiControllerOptions): ChatBiController {
+  const client = new ChatBiClient(options)
+  const commands = {
+    send: async (input: unknown): Promise<CommandReceipt> => {
+      const message = typeof input === 'string' ? input : typeof input === 'object' && input !== null && typeof (input as { message?: unknown }).message === 'string' ? (input as { message: string }).message : undefined
+      if (!message) throw new Error('ChatBI send requires a message')
+      const run = await client.createRun(options.sessionId, message, options.target)
+      return { commandId: run.id, accepted: true }
+    },
+    cancelRun: async (runId: string) => { await client.cancelRun(options.sessionId, runId) },
+  }
+  const runtime = createRuntime({ capabilities: chatBiCapabilities, commands })
+  const completions = new Map<string, Promise<void>>()
+
+  const connect = async (runId: string, signal?: AbortSignal): Promise<void> => {
+    const maxAttempts = options.maxReconnectAttempts ?? 3
+    let attempt = 0
+    while (true) {
+      attempt += 1
+      runtime.setConnection({ status: attempt === 1 ? 'connecting' : 'reconnecting', attempt })
+      try {
+        const afterSequence = runtime.getState().streams[runId]?.lastSequence ?? 0
+        runtime.setConnection({ status: 'connected', attempt })
+        await client.streamRunEvents(options.sessionId, runId, {
+          afterSequence,
+          ...(signal ? { signal } : {}),
+          onEvent(sourceEvent) {
+            const adapted = adaptChatBiEvent(sourceEvent)
+            if (adapted.event) runtime.dispatch(adapted.event)
+          },
+        })
+        runtime.setConnection({ status: 'closed', attempt })
+        return
+      } catch (error) {
+        if (signal?.aborted) {
+          runtime.setConnection({ status: 'closed', attempt })
+          throw error
+        }
+        if (attempt >= maxAttempts) {
+          runtime.setConnection({ status: 'error', attempt, error: error instanceof Error ? error.message : String(error) })
+          throw error
+        }
+        await new Promise((resolve) => setTimeout(resolve, options.reconnectDelayMs ?? 250))
+      }
+    }
+  }
+
+  return {
+    runtime,
+    async start(message, signal) {
+      const receipt = await runtime.executeCommand('send', () => runtime.commands.send!(message, crypto.randomUUID()))
+      const completion = connect(receipt.commandId, signal)
+      completions.set(receipt.commandId, completion)
+      void completion.catch(() => undefined)
+      return receipt.commandId
+    },
+    connect,
+    async waitForRun(runId) {
+      const completion = completions.get(runId)
+      if (completion) await completion
+    },
+    async cancel(runId) {
+      await runtime.executeCommand(`cancel:${runId}`, () => runtime.commands.cancelRun!(runId))
+    },
+  }
+}

@@ -12,7 +12,7 @@ describe('runtime external store contract', () => {
     runtime.dispatch(started)
     runtime.dispatch(started)
     expect(listener).toHaveBeenCalledTimes(1)
-    expect(runtime.getSnapshot().runs['run-1']?.status).toBe('running')
+    expect(runtime.getState().runs['run-1']?.status).toBe('running')
     unsubscribe()
   })
 
@@ -30,5 +30,12 @@ describe('runtime external store contract', () => {
     expect(() => createRuntime({
       capabilities: { send: false, sequence: 'strict-per-run', replay: 'live-resume', cancel: true, resume: false, retry: false, intervention: false, artifacts: false },
     })).toThrow('Capability/command mismatch for cancelRun')
+  })
+
+  it('tracks connection and command state', async () => {
+    const runtime = createRuntime()
+    runtime.setConnection({ status: 'connected', attempt: 1 })
+    await runtime.executeCommand('send', async () => 'ok')
+    expect(runtime.getSnapshot()).toMatchObject({ connection: { status: 'connected' }, commands: { send: { status: 'succeeded' } } })
   })
 })

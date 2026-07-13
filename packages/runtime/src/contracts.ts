@@ -47,6 +47,19 @@ export interface AgentCommands {
   resumeRun?(runId: string): Promise<void>
 }
 
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'
+
+export interface ConnectionState {
+  status: ConnectionStatus
+  attempt: number
+  error?: string
+}
+
+export interface CommandState {
+  status: 'idle' | 'pending' | 'succeeded' | 'failed'
+  error?: string
+}
+
 export const noCapabilities: AdapterCapabilities = {
   send: false,
   sequence: 'unordered',

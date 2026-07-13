@@ -81,3 +81,5 @@ export function adaptChatBiEvent(event: ChatBiRunEvent): AdaptResult {
       }
   }
 }
+
+export * from './client.js'
