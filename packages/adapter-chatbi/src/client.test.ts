@@ -12,7 +12,7 @@ describe('ChatBI client/controller', () => {
       return Promise.resolve(new Response(JSON.stringify({ id: 'run-1', session_id: 'session-1', status: 'queued' }), { status: 200 }))
     } as typeof globalThis.fetch
     try {
-      await expect(new ChatBiClient().createRun('session-1', 'question', { source_id: 'source-1' })).resolves.toMatchObject({ id: 'run-1' })
+      await expect(new ChatBiClient().createRun('session-1', 'question', { source_id: 'source-1' }, 'request-key-1')).resolves.toMatchObject({ id: 'run-1' })
     } finally {
       globalThis.fetch = original
     }
@@ -29,12 +29,13 @@ describe('ChatBI client/controller', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'run-1', session_id: 'session-1', status: 'queued' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(sse(sourceEvent(1, 'run.started'), sourceEvent(2, 'run.completed')), { status: 200, headers: { 'Content-Type': 'text/event-stream' } }))
     const controller = createChatBiController({ sessionId: 'session-1', target: { source_id: 'source-1' }, fetch, reconnectDelayMs: 0 })
-    const runId = await controller.start('销售额是多少？')
+    const runId = await controller.start('销售额是多少？', undefined, 'stable-request-key')
     expect(runId).toBe('run-1')
     await controller.waitForRun(runId)
     expect(controller.runtime.getState().runs['run-1']?.status).toBe('completed')
     expect(controller.runtime.getSnapshot().connection.status).toBe('closed')
     expect(fetch.mock.calls[1]?.[0]).toContain('after_sequence=0')
+    expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).get('Idempotency-Key')).toBe('stable-request-key')
   })
 
   it('reconnects from the last applied sequence', async () => {

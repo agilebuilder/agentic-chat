@@ -320,7 +320,7 @@ Adapter 通过 capability declaration 表明支持项。UI 根据 capability 显
 
 职责边界如下：Adapter 负责协议语义转换，Transport/client 负责连接和 API 调用，Runtime 负责命令 pending/receipt/diagnostic，Host 负责鉴权和业务权限。Adapter 不应逐步吸收路由、凭据、文件存储或业务状态。
 
-前端 idempotency key 只提供关联手段；只有后端持久化并执行去重时，才能宣称端到端幂等。
+前端 idempotency key 只提供关联手段；只有后端持久化并执行去重时，才能宣称端到端幂等。ChatBI CreateRun 已在 P2 按 ADR-0004 实现持久化去重、请求指纹冲突检测和并发创建保护。
 
 ## 7. Renderer 扩展体系
 

@@ -60,8 +60,8 @@ export class ChatBiClient {
     return response.json() as Promise<T>
   }
 
-  createRun(sessionId: string, message: string, target: ChatBiTarget): Promise<ChatBiRun> {
-    return this.#request(`/sessions/${sessionId}/runs`, { method: 'POST', body: JSON.stringify({ message, ...target }) })
+  createRun(sessionId: string, message: string, target: ChatBiTarget, idempotencyKey: string): Promise<ChatBiRun> {
+    return this.#request(`/sessions/${sessionId}/runs`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ message, ...target }) })
   }
 
   cancelRun(sessionId: string, runId: string): Promise<ChatBiRun> {
@@ -95,7 +95,7 @@ export interface ChatBiControllerOptions extends ChatBiClientOptions {
 
 export interface ChatBiController {
   runtime: AgenticRuntime
-  start(message: string, signal?: AbortSignal): Promise<string>
+  start(message: string, signal?: AbortSignal, idempotencyKey?: string): Promise<string>
   connect(runId: string, signal?: AbortSignal): Promise<void>
   waitForRun(runId: string): Promise<void>
   cancel(runId: string): Promise<void>
@@ -104,10 +104,10 @@ export interface ChatBiController {
 export function createChatBiController(options: ChatBiControllerOptions): ChatBiController {
   const client = new ChatBiClient(options)
   const commands = {
-    send: async (input: unknown): Promise<CommandReceipt> => {
+    send: async (input: unknown, idempotencyKey: string): Promise<CommandReceipt> => {
       const message = typeof input === 'string' ? input : typeof input === 'object' && input !== null && typeof (input as { message?: unknown }).message === 'string' ? (input as { message: string }).message : undefined
       if (!message) throw new Error('ChatBI send requires a message')
-      const run = await client.createRun(options.sessionId, message, options.target)
+      const run = await client.createRun(options.sessionId, message, options.target, idempotencyKey)
       return { commandId: run.id, accepted: true }
     },
     cancelRun: async (runId: string) => { await client.cancelRun(options.sessionId, runId) },
@@ -178,8 +178,8 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
 
   return {
     runtime,
-    async start(message, signal) {
-      const receipt = await runtime.executeCommand('send', () => runtime.commands.send!(message, crypto.randomUUID()))
+    async start(message, signal, idempotencyKey = crypto.randomUUID()) {
+      const receipt = await runtime.executeCommand('send', () => runtime.commands.send!(message, idempotencyKey))
       runtime.hydrateRun({ id: receipt.commandId, threadId: options.sessionId, status: 'queued', activityIds: [], createdAt: new Date().toISOString() })
       const completion = connect(receipt.commandId, signal)
       trackCompletion(receipt.commandId, completion)

@@ -1,7 +1,7 @@
 # P2 可复用 Alpha 开发记录
 
 > 开始日期：2026-07-13  
-> 当前状态：第三片——renderer 扩展机制已完成。
+> 当前状态：第四片——ChatBI CreateRun 端到端幂等已完成。
 
 ## 已确认决策
 
@@ -47,11 +47,21 @@
 - registry/fallback/领域接入测试完成，`chat_ui` 当前 11 个文件、43 项测试通过；
 - ChatBI 13 项测试和 production build 通过；桌面/移动主查询与 PostgreSQL 领域结果 Playwright 3 项通过、1 项按项目条件跳过。
 
+## 第四片已完成
+
+- ChatBI client 将 runtime command 的 `Idempotency-Key` 原样发送到 CreateRun API；
+- Controller 默认生成 UUID，并允许显式传入 key 供逻辑重试复用；
+- CreateRun API 强制校验 key，完整请求 body 使用稳定 SHA-256 指纹；
+- SQLite migration 4 新增持久化幂等表，Run、用户消息和 key 在同一事务写入；
+- 同 key 同请求返回原 Run，不重复写消息或启动 coordinator；同 key 不同请求返回 409；
+- `BEGIN IMMEDIATE` 并发测试验证三个同时创建请求只生成一个 Run 和一条用户消息；
+- ChatBI 后端 Ruff 及 96 项测试通过，`chat_ui` 43 项、ChatBI 前端 13 项测试通过；
+- 浏览器创建、查询、恢复和取消关键路径通过；同时将依赖 LLM 规划的主流程行数断言改为验证至少一行，精确领域结果继续由确定性后端测试负责。
+
 ## 下一片
 
-1. 设计并实现 ChatBI 创建 Run 的持久化 idempotency key；
-2. 完善 SSR server snapshot、selector 性能和长 Run 状态回收；
-3. 增加 React/Vite minimal consumer 和 Storybook 状态矩阵。
+1. 完善 SSR server snapshot、selector 性能和长 Run 状态回收；
+2. 增加 React/Vite minimal consumer 和 Storybook 状态矩阵。
 
 ## 发布前外部依赖
 
