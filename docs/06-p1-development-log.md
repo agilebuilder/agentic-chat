@@ -1,7 +1,7 @@
 # P1 ChatBI MVP 开发记录
 
 > 更新时间：2026-07-13  
-> 状态：进行中，已完成第一条独立垂直切片。
+> 状态：已完成并通过 P1 验收。
 
 ## 已完成
 
@@ -15,6 +15,11 @@
 - 创建 `@agentic-chat/react-ui` 第一版 Run status、线性 Activity、Tool fallback、Result、Composer、Cancel 和 connection notice；
 - 默认 UI 支持 CSS variables、深色模式、窄依赖和 reduced motion；
 - Node/SSR 静态渲染测试通过。
+- 已接入真实 ChatBI 前端，替换旧 timeline/SSE 本地状态；
+- ChatBI QueryResult 继续使用原有洞察、图表、表格和 SQL renderer；
+- 已完成历史 Run、运行中刷新恢复和 queued cancel；
+- 新增可构建 Playground，覆盖 completed、failed、cancelled 状态；
+- Playwright 覆盖桌面、移动、取消、已完成恢复、运行中刷新恢复和 PostgreSQL 领域结果。
 
 ## 最小接入草案
 
@@ -36,13 +41,11 @@ const [runId, setRunId] = useState<string>()
 
 `controller.start` 在 Run 创建成功后立即返回 runId，SSE 在后台继续；宿主可以用 `waitForRun(runId)` 等待终态。
 
-## 下一步
+## P2 后续
 
-- 将 packages 接入真实 ChatBI 前端并复用 QueryResult renderer；
-- 增加历史 Run 初始化与刷新恢复；
-- 增加 runtime/adapter diagnostic side channel；
-- 增加浏览器 E2E、键盘与基础无障碍测试；
-- 完善运行中 Composer 策略、错误状态和 cancel 409 处理；
-- 建立 Playground/Story 状态矩阵。
+- 将本地 Vite/TypeScript alias 集成替换为可安装、可发布 packages；
+- 增加 renderer registry、完整 headless primitives 和 Storybook 状态矩阵；
+- 完善虚拟化、视觉回归和系统化 accessibility 审计；
+- 将 runtime validation、command receipt 和 cancel 409 竞态策略稳定为公共 API。
 
-当前切片不代表 P1 已验收完成。
+完整验收结果见 `07-p1-acceptance-report.md`。

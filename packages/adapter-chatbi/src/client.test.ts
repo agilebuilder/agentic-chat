@@ -1,10 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createChatBiController, parseChatBiSseBuffer } from './client.js'
+import { ChatBiClient, createChatBiController, parseChatBiSseBuffer } from './client.js'
 
 const sourceEvent = (sequence: number, eventType: string) => ({ protocol_version: '1.0', event_id: `event-${sequence}`, event_type: eventType, session_id: 'session-1', run_id: 'run-1', sequence, created_at: '2026-07-13T00:00:00Z', tool_call_id: null, payload: {} })
 const sse = (...events: unknown[]) => events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
 
 describe('ChatBI client/controller', () => {
+  it('binds the host fetch implementation to its global receiver', async () => {
+    const original = globalThis.fetch
+    globalThis.fetch = function (this: typeof globalThis) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation')
+      return Promise.resolve(new Response(JSON.stringify({ id: 'run-1', session_id: 'session-1', status: 'queued' }), { status: 200 }))
+    } as typeof globalThis.fetch
+    try {
+      await expect(new ChatBiClient().createRun('session-1', 'question', { source_id: 'source-1' })).resolves.toMatchObject({ id: 'run-1' })
+    } finally {
+      globalThis.fetch = original
+    }
+  })
+
   it('parses SSE comments and complete data blocks', () => {
     const parsed = parseChatBiSseBuffer(`: heartbeat\n\n${sse(sourceEvent(1, 'run.started'))}`)
     expect(parsed.events).toHaveLength(1)

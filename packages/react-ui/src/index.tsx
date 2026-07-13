@@ -3,11 +3,12 @@ import { AgenticChatProvider, useActivity, useCommandState, useConnection, useRu
 import { useState, type FormEvent } from 'react'
 
 const statusLabels = { queued: '排队中', running: '运行中', awaiting_input: '等待操作', paused: '已暂停', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
+const toolStatusLabels = { running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
 
 export function RunStatus({ runId }: { runId: string }) {
   const run = useRun(runId)
   if (!run) return null
-  return <header className="ac-run-status" data-state={run.status}><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong></header>
+  return <header className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong></header>
 }
 
 function ActivityRow({ activityId }: { activityId: string }) {
@@ -18,7 +19,7 @@ function ActivityRow({ activityId }: { activityId: string }) {
     <span className="ac-activity-marker" aria-hidden="true" />
     <div className="ac-activity-body">
       <div className="ac-activity-title">{activity.kind === 'tool' ? tool?.name ?? '工具调用' : activity.text ?? activity.kind}</div>
-      {tool ? <div className="ac-tool-summary"><span>{tool.status}</span>{tool.output !== undefined ? <pre>{stringify(tool.output)}</pre> : null}</div> : null}
+      {tool ? <div className="ac-tool-summary"><span>{toolStatusLabels[tool.status]}</span>{tool.output !== undefined ? <pre>{stringify(tool.output)}</pre> : null}</div> : null}
     </div>
   </li>
 }
@@ -53,7 +54,7 @@ export function Composer({ onSend, disabled = false }: { onSend(message: string)
     setMessage('')
   }
   return <form className="ac-composer" onSubmit={submit}>
-    <textarea aria-label="消息" value={message} onChange={(event) => setMessage(event.target.value)} disabled={disabled || submitting} rows={2} />
+    <textarea aria-label="消息" value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) event.currentTarget.form?.requestSubmit() }} disabled={disabled || submitting} rows={2} />
     <button type="submit" disabled={disabled || submitting || !message.trim()}>{submitting ? '发送中…' : '发送'}</button>
   </form>
 }

@@ -60,6 +60,12 @@ export interface CommandState {
   error?: string
 }
 
+export interface RuntimeDiagnostic {
+  source: string
+  code: string
+  message: string
+}
+
 export const noCapabilities: AdapterCapabilities = {
   send: false,
   sequence: 'unordered',

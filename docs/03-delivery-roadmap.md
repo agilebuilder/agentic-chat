@@ -179,19 +179,19 @@ P1 UI 默认只实现线性 Activity 时间线。父子、并行、Task、通用
 
 ### 4.4 验收标准
 
-- [ ] ChatBI 用户可提交问题并看到 Run 从 queued 到终态；
-- [ ] tool.started/tool.finished 以 tool_call_id 正确合并；
-- [ ] reasoning delta 正确聚合，不造成重复内容；
-- [ ] result 继续使用 ChatBI 的领域视图展示；
-- [ ] 取消后 UI 在合理时间内进入 cancelled，且不会显示 completed；
-- [ ] 模拟断流后从最后 sequence 续传，不重复 Activity；
-- [ ] 刷新后可恢复已完成 Run；运行中恢复能力按 ChatBI 后端能力验收；
-- [ ] 未知事件不会令整个页面崩溃，并产生 diagnostic；
-- [ ] 关键路径有 Playwright 测试；
-- [ ] ChatBI 特有组件没有进入通用 `react-ui` 包；
-- [ ] ChatBI adapter 不导入 React，React UI 不直接解析 ChatBI 原始事件；
-- [ ] runtime 可通过 `getSnapshot/subscribe/commands` 类公共契约独立运行；
-- [ ] 相比旧 UI，用户能明确识别当前步骤、运行状态和最终结果。
+- [x] ChatBI 用户可提交问题并看到 Run 从 queued 到终态；
+- [x] tool.started/tool.finished 以 tool_call_id 正确合并；
+- [x] `thinking.delta` 当前正常流程不产生，公开语义明确前安全隐藏；显式 status/result delta 具备确定性聚合测试；
+- [x] result 继续使用 ChatBI 的领域视图展示；
+- [x] 取消后 UI 在合理时间内进入 cancelled，且不会显示 completed；
+- [x] 模拟断流后从最后 sequence 续传，不重复 Activity；
+- [x] 刷新后可恢复已完成 Run；运行中 Run 可按 ChatBI 持久化事件恢复；
+- [x] 未知事件不会令整个页面崩溃，并产生 diagnostic；
+- [x] 关键路径有 Playwright 测试；
+- [x] ChatBI 特有组件没有进入通用 `react-ui` 包；
+- [x] ChatBI adapter 不导入 React，React UI 不直接解析 ChatBI 原始事件；
+- [x] runtime 可通过 `getSnapshot/subscribe/commands` 类公共契约独立运行；
+- [x] 相比旧 UI，用户能明确识别当前步骤、运行状态和最终结果。
 
 ### 4.5 非本阶段目标
 

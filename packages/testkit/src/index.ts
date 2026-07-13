@@ -34,9 +34,7 @@ export const rawChatBiFailedRun = [
 ] as const
 
 export const rawChatBiCancelledRun = [
-  raw('run-cancelled', 1, 'run.started', { message: 'Run started' }),
-  raw('run-cancelled', 2, 'tool.started', { tool_name: 'query_data_source' }, 'call-cancelled'),
-  raw('run-cancelled', 3, 'run.cancelled', { message: 'Run cancelled' }),
+  raw('run-cancelled', 1, 'run.cancelled', { message: 'Run cancelled' }),
 ] as const
 
 export const chatBiSuccessfulRun: CanonicalEvent[] = [

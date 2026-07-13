@@ -88,4 +88,19 @@ describe('canonical reducer', () => {
     expect(state.diagnostics).toHaveLength(200)
     expect(state.streams['run-1']?.lastSequence).toBe(205)
   })
+
+  it('accepts cancellation before run.started for a queued run', () => {
+    const cancelled: CanonicalEvent = { schemaVersion: '0.1', eventId: 'queued-cancel', type: 'run.cancelled', threadId: 'thread-1', runId: 'queued-run', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {} }
+    const state = reduceEvent(createInitialState(), cancelled)
+    expect(state.runs['queued-run']).toMatchObject({ status: 'cancelled', activityIds: [] })
+    expect(state.diagnostics).toEqual([])
+  })
+
+  it('cancels running child activities and tools with the run', () => {
+    const running = replayEvents(chatBiSuccessfulRun.slice(0, 2), createInitialState())
+    const cancelled: CanonicalEvent = { schemaVersion: '0.1', eventId: 'cancel-with-tool', type: 'run.cancelled', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:03Z', data: {} }
+    const state = reduceEvent(running, cancelled)
+    expect(state.activities['tool-activity-1']?.status).toBe('cancelled')
+    expect(state.toolCalls['tool-call-1']?.status).toBe('cancelled')
+  })
 })

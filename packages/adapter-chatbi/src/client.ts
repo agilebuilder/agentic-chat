@@ -5,6 +5,7 @@ export interface ChatBiRun {
   id: string
   session_id: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  created_at?: string
 }
 
 export interface ChatBiTarget {
@@ -49,7 +50,7 @@ export class ChatBiClient {
 
   constructor(options: ChatBiClientOptions = {}) {
     this.#baseUrl = (options.baseUrl ?? '/api/v1').replace(/\/$/, '')
-    this.#fetch = options.fetch ?? globalThis.fetch
+    this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis)
   }
 
   async #request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -127,6 +128,7 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
           onEvent(sourceEvent) {
             const adapted = adaptChatBiEvent(sourceEvent)
             if (adapted.event) runtime.dispatch(adapted.event)
+            if (adapted.diagnostic) runtime.reportDiagnostic({ source: 'chatbi', ...adapted.diagnostic })
           },
         })
         runtime.setConnection({ status: 'closed', attempt })
@@ -149,6 +151,7 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
     runtime,
     async start(message, signal) {
       const receipt = await runtime.executeCommand('send', () => runtime.commands.send!(message, crypto.randomUUID()))
+      runtime.hydrateRun({ id: receipt.commandId, threadId: options.sessionId, status: 'queued', activityIds: [], createdAt: new Date().toISOString() })
       const completion = connect(receipt.commandId, signal)
       completions.set(receipt.commandId, completion)
       void completion.catch(() => undefined)

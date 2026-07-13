@@ -1,0 +1,5 @@
+body { margin: 0; background: #f4f6f8; }
+main { width: min(860px, calc(100% - 32px)); margin: 40px auto; font-family: system-ui, sans-serif; }
+nav { display: flex; gap: 8px; margin-bottom: 16px; }
+nav button { padding: 7px 12px; border: 1px solid #cfd6e1; border-radius: 8px; background: white; }
+nav button[aria-pressed="true"] { color: white; background: #285da9; }

@@ -48,8 +48,19 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
   }
 
   if (event.type === 'run.started') {
-    if (existingRun) return diagnostic(next, event, 'invalid_transition', `Run ${event.runId} has already started`)
-    next.runs[event.runId] = { id: event.runId, threadId: event.threadId, status: 'running', activityIds: [], createdAt: event.timestamp, startedAt: event.timestamp }
+    if (existingRun?.status === 'queued') next.runs[event.runId] = { ...existingRun, status: 'running', startedAt: event.timestamp }
+    else if (existingRun) return diagnostic(next, event, 'invalid_transition', `Run ${event.runId} has already started`)
+    else next.runs[event.runId] = { id: event.runId, threadId: event.threadId, status: 'running', activityIds: [], createdAt: event.timestamp, startedAt: event.timestamp }
+  } else if (!existingRun && (event.type === 'run.cancelled' || event.type === 'run.failed')) {
+    next.runs[event.runId] = {
+      id: event.runId,
+      threadId: event.threadId,
+      status: event.type === 'run.cancelled' ? 'cancelled' : 'failed',
+      activityIds: [],
+      createdAt: event.timestamp,
+      endedAt: event.timestamp,
+      ...(event.type === 'run.failed' ? { error: event.data.error } : {}),
+    }
   } else if (!existingRun) {
     return diagnostic(next, event, 'invalid_transition', 'Run must start before receiving child events')
   } else if (event.type === 'run.status.changed') {
@@ -123,6 +134,17 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
   } else {
     const status: RunStatus = event.type === 'run.completed' ? 'completed' : event.type === 'run.failed' ? 'failed' : 'cancelled'
     next.runs[event.runId] = { ...existingRun, status, endedAt: event.timestamp, ...(event.type === 'run.failed' ? { error: event.data.error } : {}) }
+    if (status === 'failed' || status === 'cancelled') {
+      for (const activityId of existingRun.activityIds) {
+        const activity = next.activities[activityId]
+        if (activity?.status === 'running') next.activities[activityId] = { ...activity, status, endedAt: event.timestamp }
+      }
+      for (const tool of Object.values(next.toolCalls)) {
+        if (tool.runId === event.runId && tool.status === 'running') {
+          next.toolCalls[tool.id] = { ...tool, status, endedAt: event.timestamp, ...(status === 'failed' && event.type === 'run.failed' ? { error: event.data.error } : {}) }
+        }
+      }
+    }
   }
   return next
 }

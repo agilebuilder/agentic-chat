@@ -1,5 +1,5 @@
-import { createInitialState, reduceEvent, type AgenticState, type CanonicalEvent } from '@agentic-chat/core'
-import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, type AgentCommands, type CommandState, type ConnectionState } from './contracts.js'
+import { createInitialState, reduceEvent, type AgentRun, type AgenticState, type CanonicalEvent } from '@agentic-chat/core'
+import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, type AgentCommands, type CommandState, type ConnectionState, type RuntimeDiagnostic } from './contracts.js'
 export * from './contracts.js'
 export * from './selectors.js'
 
@@ -7,6 +7,7 @@ export interface RuntimeSnapshot {
   state: AgenticState
   connection: ConnectionState
   commands: Record<string, CommandState>
+  diagnostics: RuntimeDiagnostic[]
 }
 
 export interface AgenticRuntime {
@@ -15,8 +16,10 @@ export interface AgenticRuntime {
   getSnapshot(): RuntimeSnapshot
   getState(): AgenticState
   dispatch(event: CanonicalEvent): void
+  hydrateRun(run: AgentRun): void
   setConnection(connection: ConnectionState): void
   executeCommand<T>(key: string, operation: () => Promise<T>): Promise<T>
+  reportDiagnostic(diagnostic: RuntimeDiagnostic): void
   subscribe(listener: () => void): () => void
 }
 
@@ -31,6 +34,7 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
     state: options.initialState ?? createInitialState(),
     connection: { status: 'idle', attempt: 0 },
     commands: {},
+    diagnostics: [],
   }
   const capabilities = options.capabilities ?? noCapabilities
   const commands = options.commands ?? {}
@@ -45,6 +49,12 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       const next = reduceEvent(snapshot.state, event)
       if (next === snapshot.state) return
       snapshot = { ...snapshot, state: next }
+      listeners.forEach((listener) => listener())
+    },
+    hydrateRun(run) {
+      const existing = snapshot.state.runs[run.id]
+      if (existing) return
+      snapshot = { ...snapshot, state: { ...snapshot.state, runs: { ...snapshot.state.runs, [run.id]: run } } }
       listeners.forEach((listener) => listener())
     },
     setConnection(connection) {
@@ -64,6 +74,10 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
         listeners.forEach((listener) => listener())
         throw error
       }
+    },
+    reportDiagnostic(diagnostic) {
+      snapshot = { ...snapshot, diagnostics: [...snapshot.diagnostics, diagnostic].slice(-200) }
+      listeners.forEach((listener) => listener())
     },
     subscribe(listener) {
       listeners.add(listener)

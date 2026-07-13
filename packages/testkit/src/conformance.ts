@@ -9,7 +9,7 @@ export interface ConformanceResult {
 export function checkRunConformance(events: readonly CanonicalEvent[]): ConformanceResult {
   const issues: string[] = []
   if (events.length === 0) return { state: createInitialState(), issues: ['fixture is empty'] }
-  if (events[0]?.type !== 'run.started') issues.push('first event must be run.started')
+  if (!['run.started', 'run.failed', 'run.cancelled'].includes(events[0]?.type ?? '')) issues.push('first event must establish or terminate a run')
   const runIds = new Set(events.map((event) => event.runId))
   if (runIds.size !== 1) issues.push('fixture must contain exactly one run')
   const state = replayEvents(events, createInitialState())
