@@ -97,14 +97,12 @@
 
 ## P2.9 下一步
 
-1. 配置 GitHub 鉴权并推送分支，启用 GitHub Actions 后验证远端 CI；
-2. 配置 npm 登录、`@agentic-chat` 组织发布权限与 2FA，先执行 dry-run/tarball 审查，再发布 alpha tag；
-3. 由未参与核心开发的人员依据 `docs/14-quick-start-acceptance.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
-4. 使用发布后的 npm 版本替换 ChatBI 当前本地 `file:` 依赖，执行最终集成验收。
+1. [x] GitHub 鉴权、首次推送和 Actions CI：Node 20、Node 22、浏览器质量三个 job 已完成首次全绿验证；
+2. [ ] npm `@agentic-chat` 组织已鉴权，Changesets 与六个公开包均固定 `access: public`；待执行版本化、dry-run 审查和 alpha 发布；
+3. [ ] 由未参与核心开发的人员依据 `docs/14-quick-start-acceptance.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
+4. [ ] 使用发布后的 npm 版本替换 ChatBI 当前本地 `file:` 依赖，执行最终集成验收。
 
 ## 发布前外部依赖
 
-- 配置 GitHub 本地鉴权并首次推送；
-- 配置 GitHub Actions；
-- 配置 npm 登录和组织发布权限；
+- npm 版本化、Alpha 发布和发布后安装烟雾验证；
 - 安排 Quick Start 独立验收人员。
