@@ -4,6 +4,11 @@ export default defineConfig({
   testDir: './tests/quality',
   outputDir: '.tmp/playwright-quality',
   snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}',
+  expect: {
+    // Windows and Linux Chromium rasterize the same system-font layout slightly differently.
+    // Keep one reviewed baseline while still rejecting visual changes above the observed 1-2% noise.
+    toHaveScreenshot: { maxDiffPixelRatio: 0.025 },
+  },
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
