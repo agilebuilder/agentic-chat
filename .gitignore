@@ -2,4 +2,6 @@ node_modules/
 dist/
 coverage/
 .tmp/
+apps/storybook/storybook-static/
+playwright-report/
 *.tsbuildinfo

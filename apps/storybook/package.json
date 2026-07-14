@@ -1,0 +1,24 @@
+{
+  "name": "@agentic-chat/storybook",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "storybook dev --config-dir .storybook --port 6006",
+    "build": "storybook build --config-dir .storybook --output-dir storybook-static",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentic-chat/core": "workspace:*",
+    "@agentic-chat/react-ui": "workspace:*",
+    "@agentic-chat/runtime": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@storybook/react-vite": "10.5.0",
+    "@types/react": "^19.0.0",
+    "storybook": "10.5.0",
+    "typescript": "~5.9.0"
+  }
+}

@@ -1,4 +1,4 @@
-import { createInitialState, reduceEvent, type AgentRun, type AgenticState, type CanonicalEvent } from '@agentic-chat/core'
+import { compactRunStream, createInitialState, reduceEvent, type AgentRun, type AgenticState, type CanonicalEvent } from '@agentic-chat/core'
 import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, type AgentCommands, type CommandState, type ConnectionState, type RuntimeDiagnostic } from './contracts.js'
 export * from './contracts.js'
 export * from './selectors.js'
@@ -17,6 +17,7 @@ export interface AgenticRuntime {
   getState(): AgenticState
   dispatch(event: CanonicalEvent): void
   hydrateRun(run: AgentRun): void
+  compactRun(runId: string): void
   setConnection(connection: ConnectionState): void
   executeCommand<T>(key: string, operation: () => Promise<T>): Promise<T>
   reportDiagnostic(diagnostic: RuntimeDiagnostic): void
@@ -55,6 +56,12 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       const existing = snapshot.state.runs[run.id]
       if (existing) return
       snapshot = { ...snapshot, state: { ...snapshot.state, runs: { ...snapshot.state.runs, [run.id]: run } } }
+      listeners.forEach((listener) => listener())
+    },
+    compactRun(runId) {
+      const state = compactRunStream(snapshot.state, runId)
+      if (state === snapshot.state) return
+      snapshot = { ...snapshot, state }
       listeners.forEach((listener) => listener())
     },
     setConnection(connection) {

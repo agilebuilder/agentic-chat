@@ -45,6 +45,15 @@ describe('runtime external store contract', () => {
     expect(runtime.getSnapshot().diagnostics).toEqual([{ source: 'test-adapter', code: 'unsupported_event', message: 'Hidden event' }])
   })
 
+  it('bounds retained adapter diagnostics', () => {
+    const runtime = createRuntime()
+    for (let index = 0; index < 205; index += 1) {
+      runtime.reportDiagnostic({ source: 'test-adapter', code: `diagnostic-${index}`, message: 'Bounded diagnostic' })
+    }
+    expect(runtime.getSnapshot().diagnostics).toHaveLength(200)
+    expect(runtime.getSnapshot().diagnostics[0]?.code).toBe('diagnostic-5')
+  })
+
   it('hydrates a queued run without consuming its event cursor', () => {
     const runtime = createRuntime()
     runtime.hydrateRun({ id: 'run-1', threadId: 'thread-1', status: 'queued', activityIds: [], createdAt: '2026-07-13T00:00:00Z' })
@@ -52,5 +61,17 @@ describe('runtime external store contract', () => {
     expect(runtime.getState().streams['run-1']).toBeUndefined()
     runtime.dispatch({ schemaVersion: '0.1', eventId: 'start-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:01Z', data: {} })
     expect(runtime.getState().runs['run-1']?.status).toBe('running')
+  })
+
+  it('compacts replay metadata and notifies subscribers once', () => {
+    const runtime = createRuntime()
+    runtime.dispatch(started)
+    const listener = vi.fn()
+    runtime.subscribe(listener)
+    runtime.compactRun('run-1')
+    expect(runtime.getState().streams['run-1']).toMatchObject({ compactedThroughSequence: 1, seenEventIds: {} })
+    expect(listener).toHaveBeenCalledTimes(1)
+    runtime.dispatch(started)
+    expect(listener).toHaveBeenCalledTimes(1)
   })
 })

@@ -5,19 +5,35 @@ import { createRendererRegistry, type RendererRegistry } from './renderers.js'
 
 export * from './renderers.js'
 
-const RuntimeContext = createContext<AgenticRuntime | null>(null)
+interface RuntimeProviderValue {
+  runtime: AgenticRuntime
+  serverSnapshot?: RuntimeSnapshot
+}
+
+const RuntimeContext = createContext<RuntimeProviderValue | null>(null)
 const RendererContext = createContext<RendererRegistry | null>(null)
 
-export function AgenticChatProvider({ runtime, renderers, children }: PropsWithChildren<{ runtime: AgenticRuntime; renderers?: RendererRegistry }>) {
+export interface AgenticChatProviderProps extends PropsWithChildren {
+  runtime: AgenticRuntime
+  renderers?: RendererRegistry
+  /** Snapshot serialized by the server and reused for the first hydration render. */
+  serverSnapshot?: RuntimeSnapshot
+}
+
+export function AgenticChatProvider({ runtime, renderers, serverSnapshot, children }: AgenticChatProviderProps) {
   const defaultRenderers = useRef<RendererRegistry | null>(null)
   if (!defaultRenderers.current) defaultRenderers.current = createRendererRegistry()
-  return <RuntimeContext.Provider value={runtime}><RendererContext.Provider value={renderers ?? defaultRenderers.current}>{children}</RendererContext.Provider></RuntimeContext.Provider>
+  const runtimeValue = useRef<RuntimeProviderValue>({ runtime, ...(serverSnapshot ? { serverSnapshot } : {}) })
+  if (runtimeValue.current.runtime !== runtime || runtimeValue.current.serverSnapshot !== serverSnapshot) {
+    runtimeValue.current = { runtime, ...(serverSnapshot ? { serverSnapshot } : {}) }
+  }
+  return <RuntimeContext.Provider value={runtimeValue.current}><RendererContext.Provider value={renderers ?? defaultRenderers.current}>{children}</RendererContext.Provider></RuntimeContext.Provider>
 }
 
 export function useAgenticRuntime(): AgenticRuntime {
   const runtime = useContext(RuntimeContext)
   if (!runtime) throw new Error('AgenticChatProvider is missing')
-  return runtime
+  return runtime.runtime
 }
 
 export function useRendererRegistry(): RendererRegistry {
@@ -32,8 +48,14 @@ export function useRendererVersion(): number {
 }
 
 export function useRuntimeSelector<T>(selector: (snapshot: RuntimeSnapshot) => T): T {
-  const runtime = useAgenticRuntime()
-  return useSyncExternalStore(runtime.subscribe, () => selector(runtime.getSnapshot()), () => selector(runtime.getSnapshot()))
+  const context = useContext(RuntimeContext)
+  if (!context) throw new Error('AgenticChatProvider is missing')
+  const { runtime, serverSnapshot } = context
+  return useSyncExternalStore(
+    runtime.subscribe,
+    () => selector(runtime.getSnapshot()),
+    () => selector(serverSnapshot ?? runtime.getSnapshot()),
+  )
 }
 
 export const useRun = (runId: string): AgentRun | undefined => useRuntimeSelector((snapshot) => snapshot.state.runs[runId])

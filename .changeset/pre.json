@@ -1,0 +1,19 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@agentic-chat/fixture-player": "0.0.0",
+    "@agentic-chat/minimal": "0.0.0",
+    "@agentic-chat/node-harness": "0.0.0",
+    "@agentic-chat/playground": "0.0.0",
+    "@agentic-chat/storybook": "0.0.0",
+    "@agentic-chat/adapter-ag-ui": "0.1.0-alpha.0",
+    "@agentic-chat/adapter-chatbi": "0.1.0-alpha.0",
+    "@agentic-chat/core": "0.1.0-alpha.0",
+    "@agentic-chat/react": "0.1.0-alpha.0",
+    "@agentic-chat/react-ui": "0.1.0-alpha.0",
+    "@agentic-chat/runtime": "0.1.0-alpha.0",
+    "@agentic-chat/testkit": "0.1.0-alpha.0"
+  },
+  "changesets": []
+}

@@ -84,6 +84,8 @@ export interface AgentError {
 export interface StreamCursor {
   scope: 'run'
   lastSequence: number
+  /** Events at or below this sequence were deliberately compacted. */
+  compactedThroughSequence: number
   seenEventIds: Record<string, true>
   blocked: boolean
 }

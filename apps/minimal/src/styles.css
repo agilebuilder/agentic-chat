@@ -1,0 +1,12 @@
+:root { color: #172033; background: #eef2f7; font-family: Inter, system-ui, sans-serif; }
+body { margin: 0; }
+main { width: min(760px, calc(100% - 32px)); margin: 56px auto; }
+header { margin-bottom: 20px; }
+header p { margin: 0; color: #2563eb; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+header h1 { margin: 4px 0; font-size: clamp(28px, 6vw, 44px); }
+header span { color: #667085; }
+
+@media (prefers-color-scheme: dark) {
+  :root { color: #f3f4f6; background: #0b1120; }
+  header span { color: #9ca3af; }
+}

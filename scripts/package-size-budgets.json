@@ -1,0 +1,8 @@
+{
+  "adapter-chatbi": 49152,
+  "core": 65536,
+  "react": 49152,
+  "react-ui": 73728,
+  "runtime": 49152,
+  "testkit": 49152
+}

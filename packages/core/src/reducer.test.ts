@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CanonicalEvent } from './events.js'
 import { createInitialState } from './model.js'
-import { reduceEvent, replayEvents } from './reducer.js'
+import { compactRunStream, MAX_RETAINED_EVENT_IDS_PER_RUN, reduceEvent, replayEvents } from './reducer.js'
 
 const chatBiSuccessfulRun: CanonicalEvent[] = [
   { schemaVersion: '0.1', eventId: 'evt-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {} },
@@ -19,6 +19,7 @@ describe('canonical reducer', () => {
     expect(first.runs['run-1']?.status).toBe('completed')
     expect(first.toolCalls['tool-call-1']?.status).toBe('completed')
     expect(first.results['run-1']).toEqual({ kind: 'test.result', value: { row_count: 3 } })
+    expect(first.streams['run-1']).toMatchObject({ compactedThroughSequence: 5, seenEventIds: {} })
   })
 
   it('is idempotent for a duplicate event id', () => {
@@ -102,5 +103,34 @@ describe('canonical reducer', () => {
     const state = reduceEvent(running, cancelled)
     expect(state.activities['tool-activity-1']?.status).toBe('cancelled')
     expect(state.toolCalls['tool-call-1']?.status).toBe('cancelled')
+  })
+
+  it('bounds event ids while preserving idempotent historical replay', () => {
+    const events: CanonicalEvent[] = [chatBiSuccessfulRun[0]!]
+    for (let sequence = 2; sequence <= 600; sequence += 1) {
+      events.push({
+        schemaVersion: '0.1',
+        eventId: `observed-${sequence}`,
+        type: 'source.observed',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        sequence,
+        timestamp: '2026-07-13T00:00:01Z',
+        data: { sourceType: 'benchmark' },
+      })
+    }
+    const state = replayEvents(events, createInitialState())
+    const cursor = state.streams['run-1']!
+    expect(Object.keys(cursor.seenEventIds).length).toBeLessThanOrEqual(MAX_RETAINED_EVENT_IDS_PER_RUN)
+    expect(cursor.compactedThroughSequence).toBeGreaterThan(0)
+    expect(replayEvents(events, state)).toBe(state)
+  })
+
+  it('supports explicit safe stream compaction', () => {
+    const state = replayEvents(chatBiSuccessfulRun.slice(0, 3), createInitialState())
+    const compacted = compactRunStream(state, 'run-1')
+    expect(compacted.streams['run-1']).toMatchObject({ compactedThroughSequence: 3, seenEventIds: {} })
+    expect(replayEvents(chatBiSuccessfulRun.slice(0, 3), compacted)).toBe(compacted)
+    expect(compactRunStream(compacted, 'run-1')).toBe(compacted)
   })
 })

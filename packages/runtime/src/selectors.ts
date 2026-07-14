@@ -11,8 +11,12 @@ export const selectRunActivities = (state: AgenticState, runId: string): Activit
 export const selectToolCall = (state: AgenticState, toolCallId: string): ToolCall | undefined => state.toolCalls[toolCallId]
 
 export const selectLatestRunId = (state: AgenticState, threadId?: string): string | undefined => {
-  const runs = Object.values(state.runs).filter((run) => threadId === undefined || run.threadId === threadId)
-  return runs.sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]?.id
+  let latest: AgentRun | undefined
+  for (const run of Object.values(state.runs)) {
+    if (threadId !== undefined && run.threadId !== threadId) continue
+    if (!latest || run.createdAt > latest.createdAt) latest = run
+  }
+  return latest?.id
 }
 
 export const selectRunNeedsAttention = (state: AgenticState, runId: string): boolean => {

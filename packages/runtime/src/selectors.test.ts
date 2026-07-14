@@ -15,4 +15,16 @@ describe('runtime selectors', () => {
     expect(selectLatestRunId(state, 'thread-1')).toBe('run-1')
     expect(selectRunNeedsAttention(state, 'run-1')).toBe(true)
   })
+  it('selects in one pass without sorting the state collection', () => {
+    const withRuns = {
+      ...state,
+      runs: {
+        old: { id: 'old', threadId: 'thread-2', status: 'completed' as const, activityIds: [], createdAt: '2026-07-13T00:00:00Z' },
+        beta: { id: 'beta', threadId: 'thread-2', status: 'running' as const, activityIds: [], createdAt: '2026-07-14T00:00:00Z' },
+        alpha: { id: 'alpha', threadId: 'thread-2', status: 'running' as const, activityIds: [], createdAt: '2026-07-14T00:00:00Z' },
+      },
+    }
+    expect(selectLatestRunId(withRuns, 'thread-2')).toBe('beta')
+    expect(Object.keys(withRuns.runs)).toEqual(['old', 'beta', 'alpha'])
+  })
 })

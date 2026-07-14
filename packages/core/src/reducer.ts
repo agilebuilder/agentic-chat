@@ -3,18 +3,46 @@ import type { AgenticState, Diagnostic, RunStatus, StreamCursor } from './model.
 
 const terminalStatuses = new Set<RunStatus>(['completed', 'failed', 'cancelled'])
 const maxRetainedDiagnostics = 200
+export const MAX_RETAINED_EVENT_IDS_PER_RUN = 256
 
 function diagnostic(state: AgenticState, event: CanonicalEvent, code: Diagnostic['code'], message: string): AgenticState {
   return { ...state, diagnostics: [...state.diagnostics, { code, message, eventId: event.eventId, runId: event.runId }].slice(-maxRetainedDiagnostics) }
 }
 
 function cursorFor(state: AgenticState, runId: string): StreamCursor {
-  return state.streams[runId] ?? { scope: 'run', lastSequence: 0, seenEventIds: {}, blocked: false }
+  const cursor = state.streams[runId]
+  return cursor ? { ...cursor, compactedThroughSequence: cursor.compactedThroughSequence ?? 0 } : { scope: 'run', lastSequence: 0, compactedThroughSequence: 0, seenEventIds: {}, blocked: false }
+}
+
+function advanceCursor(cursor: StreamCursor, event: CanonicalEvent): StreamCursor {
+  const seenEventIds = { ...cursor.seenEventIds, [event.eventId]: true as const }
+  if (Object.keys(seenEventIds).length <= MAX_RETAINED_EVENT_IDS_PER_RUN) {
+    return { ...cursor, lastSequence: event.sequence, seenEventIds }
+  }
+  return { ...cursor, lastSequence: event.sequence, compactedThroughSequence: event.sequence, seenEventIds: {} }
+}
+
+/**
+ * Drops replay metadata already represented by a contiguous stream cursor.
+ * Historical events remain idempotent because their sequence is covered by the
+ * compacted-through watermark. A blocked cursor is never compacted.
+ */
+export function compactRunStream(state: AgenticState, runId: string): AgenticState {
+  const cursor = state.streams[runId]
+  if (!cursor || cursor.blocked || Object.keys(cursor.seenEventIds).length === 0) return state
+  return {
+    ...state,
+    streams: {
+      ...state.streams,
+      [runId]: { ...cursor, compactedThroughSequence: cursor.lastSequence, seenEventIds: {} },
+    },
+  }
 }
 
 export function reduceEvent(state: AgenticState, event: CanonicalEvent): AgenticState {
   let cursor = cursorFor(state, event.runId)
   if (cursor.seenEventIds[event.eventId]) return state
+  if (event.sequence <= cursor.compactedThroughSequence) return state
   if (cursor.blocked && event.sequence !== cursor.lastSequence + 1) {
     return diagnostic(state, event, 'sequence_gap', 'Stream is blocked pending the missing replay event or a snapshot')
   }
@@ -40,9 +68,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     streams: {
       ...state.streams,
       [event.runId]: {
-        ...cursor,
-        lastSequence: event.sequence,
-        seenEventIds: { ...cursor.seenEventIds, [event.eventId]: true },
+        ...advanceCursor(cursor, event),
       },
     },
   }
@@ -145,6 +171,15 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
           next.toolCalls[tool.id] = { ...tool, status, endedAt: event.timestamp, ...(status === 'failed' && event.type === 'run.failed' ? { error: event.data.error } : {}) }
         }
       }
+    }
+  }
+  const resultingRun = next.runs[event.runId]
+  const resultingCursor = next.streams[event.runId]
+  if (resultingRun && terminalStatuses.has(resultingRun.status) && resultingCursor && Object.keys(resultingCursor.seenEventIds).length > 0) {
+    next.streams[event.runId] = {
+      ...resultingCursor,
+      compactedThroughSequence: resultingCursor.lastSequence,
+      seenEventIds: {},
     }
   }
   return next

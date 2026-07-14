@@ -43,6 +43,7 @@ Adapter 应产生稳定、领域明确的 kind，例如 `chatbi.query-result`，
 ## 安全边界
 
 - 默认 fallback 不执行 raw HTML；
+- `markdown` 默认 renderer 只解析标题、列表、代码、粗体和安全链接等保守子集；原始 HTML 始终作为文本，链接只允许 `http`、`https` 和 `mailto`；
 - 默认 Artifact fallback 不打开或下载 URI；
 - URL 白名单、下载授权和 iframe sandbox 由宿主 renderer 实施；
 - 浏览器渲染期间，自定义 renderer 异常会局部回退，不影响 Run 状态和其他 Activity；

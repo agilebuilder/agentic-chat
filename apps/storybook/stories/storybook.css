@@ -1,0 +1,15 @@
+.story-surface {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 32px;
+  background: #eef2f7;
+}
+
+.story-frame {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+@media (max-width: 480px) {
+  .story-surface { padding: 12px; }
+}

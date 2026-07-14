@@ -262,18 +262,18 @@ P1 UI 默认只实现线性 Activity 时间线。父子、并行、Task、通用
 
 ### 5.4 验收标准
 
-- [ ] 新建 React/Vite 示例可以只安装公开包运行；
-- [ ] 最小接入不需要依赖 Zustand 或 ChatBI 类型；
+- [x] 新建 React/Vite 示例可以只安装公开包运行；仓库内 `apps/minimal` 与 tarball 隔离安装验证均通过；
+- [x] 最小接入不需要依赖 Zustand 或 ChatBI 类型；
 - [x] core/runtime/adapter 的发布依赖中不存在 React、Vue 和 DOM-only 包；
 - [x] 一个不挂载 React 的 Node harness 可以创建 runtime、replay fixtures、执行 selector 和 command mock；
 - [x] React bindings 只消费公开 runtime contract，不导入 adapter 内部实现；
 - [x] 消费者可替换 Tool、Artifact 和 Message renderer；
 - [x] 未注册内容有可理解的 fallback；
-- [ ] 默认 CSS 不明显污染宿主全局样式；
-- [ ] 深浅主题和窄屏基础体验可用；
-- [ ] 键盘可完成输入、发送、停止、展开和主要介入操作；
-- [ ] 默认 Markdown 配置不执行 raw HTML；
-- [ ] 1,000 activities benchmark 达到团队设定预算且无明显卡死；
+- [x] 默认 CSS 不明显污染宿主全局样式；自动检查覆盖 95 个 `.ac-*` selector；
+- [x] 深浅主题和窄屏基础体验可用；已有 Storybook 状态与视觉基线；
+- [x] 键盘可完成输入、发送、停止、展开和主要介入操作；已有焦点、details 和 intervention 自动化检查；
+- [x] 默认 Markdown 配置不执行 raw HTML；不使用 `dangerouslySetInnerHTML`，并限制链接 scheme；
+- [x] 1,000 activities benchmark 达到团队设定预算且无明显卡死；当前基线约 551ms，预算 4,000ms；
 - [x] 发布包无意外开发依赖，类型声明和 ESM 导入正常；
 - [ ] Quick Start 由一名未参与核心开发的人在 30 分钟内完成。
 

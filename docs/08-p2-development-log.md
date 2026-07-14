@@ -1,7 +1,7 @@
 # P2 可复用 Alpha 开发记录
 
 > 开始日期：2026-07-13  
-> 当前状态：第四片——ChatBI CreateRun 端到端幂等已完成。
+> 当前状态：P2.5–P2.8 已完成；等待 P2.9 发布环境与独立 Quick Start 验收。
 
 ## 已确认决策
 
@@ -58,10 +58,49 @@
 - ChatBI 后端 Ruff 及 96 项测试通过，`chat_ui` 43 项、ChatBI 前端 13 项测试通过；
 - 浏览器创建、查询、恢复和取消关键路径通过；同时将依赖 LLM 规划的主流程行数断言改为验证至少一行，精确领域结果继续由确定性后端测试负责。
 
-## 下一片
+## P2.5：SSR、性能与长 Run 已完成
 
-1. 完善 SSR server snapshot、selector 性能和长 Run 状态回收；
-2. 增加 React/Vite minimal consumer 和 Storybook 状态矩阵。
+- React Provider 支持注入稳定 `serverSnapshot`，服务端渲染和首次 hydration 使用同一快照；
+- `selectLatestRunId` 从每次排序改为 O(n) 单次扫描；
+- stream cursor 增加压缩水位线，活跃 Run 只保留最近 256 个 event ID，终态自动回收；
+- 提供 `compactRunStream` 与 runtime `compactRun` 显式回收入口，blocked stream 不允许压缩；
+- diagnostics 保持最多 200 条；
+- 1,000 activities / 2,001 events 性能测试纳入 `pnpm test`：摄取预算 4,000ms、selector 预算 50ms，当前机器实测约 551ms。
+
+## P2.6：可复用默认 UI 已完成
+
+- 新增 ThreadList、MessageList、TaskPanel、ArtifactPanel 和基础 InterventionPanel；
+- 新增 Notice、LoadingState、EmptyState、ErrorState、RecoveryNotice 与公开 ErrorBoundary；
+- Tool fallback 支持参数、结果、错误、耗时、折叠和复制；
+- Composer 支持前后 slots、附件入口以及 disable/queue/intervene 运行中策略；
+- 默认 Markdown 使用保守 React element renderer，不执行 raw HTML，不使用 `dangerouslySetInnerHTML`，链接只允许 `http`、`https`、`mailto`；
+- Artifact fallback 继续只展示 URI，不默认打开或下载不可信地址；
+- 支持 `system/light/dark` 显式主题、窄屏布局和 reduced-motion；
+- 修复派生 selector 返回新数组可能导致的重复渲染，以及 axe 发现的非法 `header role=status` 组合。
+
+## P2.7：开发者体验已完成
+
+- 新增独立 React/Vite `apps/minimal`，只消费公共包 exports；
+- 新增 fixture player，覆盖成功、失败、取消与并行编码 fixture，支持播放、暂停、单步、重置和调速；
+- 新增 Quick Start、主题、Adapter 与 Alpha 发布流程文档；
+- 配置 Changesets `alpha` 预发布模式、版本与发布脚本；private workspace 不参与版本和 tag；
+- 为 core/runtime/react/react-ui 的本批公共变化增加 patch changeset。
+
+## P2.8：质量门禁已完成
+
+- Storybook 覆盖 Empty、Running、Completed、Failed、Cancelled、Workspace Primitives 六类状态；
+- Playwright 质量矩阵 11/11：6 项 axe、3 项视觉回归、2 项键盘流程；
+- CSS scope 检查覆盖 95 个 selector，只允许 `.ac-*` 与组件自有 `@keyframes ac-*`；
+- 公共包建立原始 dist 体积预算，`react-ui` 当前 63,158 / 73,728 bytes；
+- `pnpm verify` 全绿：13 个测试文件 54 项测试、12 个 workspace 构建、Node harness、6 个 tarball 隔离安装；
+- ChatBI 消费端 13 项前端测试与 production build 回归通过。
+
+## P2.9 下一步
+
+1. 配置 GitHub 鉴权并推送分支，启用 GitHub Actions 后验证远端 CI；
+2. 配置 npm 登录、`@agentic-chat` 组织发布权限与 2FA，先执行 dry-run/tarball 审查，再发布 alpha tag；
+3. 由未参与核心开发的人员依据 `docs/10-quick-start.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
+4. 使用发布后的 npm 版本替换 ChatBI 当前本地 `file:` 依赖，执行最终集成验收。
 
 ## 发布前外部依赖
 

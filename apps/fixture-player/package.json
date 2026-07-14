@@ -1,0 +1,24 @@
+{
+  "name": "@agentic-chat/fixture-player",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentic-chat/core": "workspace:^",
+    "@agentic-chat/react-ui": "workspace:^",
+    "@agentic-chat/runtime": "workspace:^",
+    "@agentic-chat/testkit": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.0",
+    "typescript": "~5.9.0",
+    "vite": "^8.0.0"
+  }
+}
