@@ -32,7 +32,7 @@ assert.equal(archives.length, publicPackages.length, 'every public package must 
 
 const dependencies = {}
 for (const archive of archives) {
-  const match = /^agentic-chat-(.+)-0\.1\.0-alpha\.0\.tgz$/.exec(archive)
+  const match = /^agentic-chat-(.+)-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\.tgz$/.exec(archive)
   assert.ok(match, `unexpected archive name: ${archive}`)
   dependencies[`@agentic-chat/${match[1]}`] = `file:${relative(consumerDirectory, resolve(packsDirectory, archive)).replaceAll('\\', '/')}`
 }
@@ -61,7 +61,7 @@ assert.equal(runtime.getState().runs['run-1']?.status, 'completed')
 console.log('Packed package ESM, types, dependencies, and SSR import smoke test passed.')
 `)
 
-run('pnpm', ['install', '--ignore-workspace', '--offline', '--ignore-scripts', '--frozen-lockfile=false'], consumerDirectory)
+run('pnpm', ['install', '--ignore-workspace', '--prefer-offline', '--ignore-scripts', '--frozen-lockfile=false'], consumerDirectory)
 run('node', ['smoke.mjs'], consumerDirectory)
 
 console.log(`Verified ${archives.length} installable package archives.`)

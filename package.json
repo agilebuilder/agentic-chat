@@ -13,7 +13,7 @@
     "check:css-scope": "node scripts/check-css-scope.mjs",
     "check:size": "node scripts/check-package-size.mjs",
     "storybook": "pnpm --filter @agentic-chat/storybook dev",
-    "storybook:build": "pnpm --filter @agentic-chat/storybook build",
+    "storybook:build": "pnpm --filter @agentic-chat/storybook... build",
     "quality:browser": "pnpm storybook:build && playwright test --config playwright.quality.config.ts",
     "quality:browser:update": "pnpm storybook:build && playwright test --config playwright.quality.config.ts --update-snapshots",
     "quality:a11y": "pnpm storybook:build && playwright test --config playwright.quality.config.ts --grep accessibility",
