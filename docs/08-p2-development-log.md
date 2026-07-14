@@ -99,7 +99,7 @@
 
 1. 配置 GitHub 鉴权并推送分支，启用 GitHub Actions 后验证远端 CI；
 2. 配置 npm 登录、`@agentic-chat` 组织发布权限与 2FA，先执行 dry-run/tarball 审查，再发布 alpha tag；
-3. 由未参与核心开发的人员依据 `docs/10-quick-start.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
+3. 由未参与核心开发的人员依据 `docs/14-quick-start-acceptance.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
 4. 使用发布后的 npm 版本替换 ChatBI 当前本地 `file:` 依赖，执行最终集成验收。
 
 ## 发布前外部依赖

@@ -2,6 +2,8 @@
 
 公共包通过 Changesets 统一版本化并发布到 npm `@agentic-chat/*` scope。当前 Alpha 起始版本为 `0.1.0-alpha.0`，私有的 `@agentic-chat/adapter-ag-ui` 和所有 `apps/*` 不发布。
 
+Changesets 的默认 `access` 与每个公开包的 `publishConfig.access` 均固定为 `public`。不要依赖开发机上的 npm 全局 access 默认值；scope 包缺少该配置时会被 npm 当作 restricted 包处理。
+
 ## 为改动创建 changeset
 
 ```bash

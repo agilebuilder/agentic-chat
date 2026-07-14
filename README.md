@@ -24,6 +24,8 @@ See [`docs/01-product-requirements.md`](docs/01-product-requirements.md) and [`d
 Custom UI integrations can start with the [`renderer guide`](docs/09-renderer-guide.md).
 For a new application, follow the [`Quick Start`](docs/10-quick-start.md), then see the
 [`theming`](docs/11-theming.md) and [`adapter`](docs/12-adapter-guide.md) guides.
+Alpha 发布前后分别参考 [`release guide`](docs/13-alpha-release.md) 和
+[`30-minute Quick Start acceptance`](docs/14-quick-start-acceptance.md)。
 
 ## License
 
