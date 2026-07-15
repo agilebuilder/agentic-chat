@@ -1,5 +1,6 @@
 import { createInitialState, type CanonicalEvent, type RunStatus } from '@agentic-chat/core'
-import { AgenticChat } from '@agentic-chat/react-ui'
+import { createRendererRegistry } from '@agentic-chat/react'
+import { AgenticChat, SandboxedArtifactFrame } from '@agentic-chat/react-ui'
 import { createRuntime, type AgenticRuntime } from '@agentic-chat/runtime'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
@@ -70,7 +71,7 @@ function createWorkspaceRuntime() {
   state.tasks['task-1'] = { id: 'task-1', runId, title: 'Inspect the dataset', status: 'completed' }
   state.tasks['task-2'] = { id: 'task-2', runId, title: 'Confirm publication', status: 'blocked' }
   state.taskRevisionByRunId[runId] = 1
-  state.artifacts['artifact-1'] = { id: 'artifact-1', runId, name: 'Revenue report.csv', kind: 'text/csv', status: 'available', uri: 'https://example.invalid/revenue.csv' }
+  state.artifacts['artifact-1'] = { id: 'artifact-1', runId, name: 'Revenue report.csv', kind: 'text/csv', status: 'available', version: 1, provenance: { type: 'agent' }, createdAt: '2026-07-14T02:00:00Z', uri: 'https://example.invalid/revenue.csv' }
   state.interventions['approval-1'] = { id: 'approval-1', runId, kind: 'approval', status: 'pending', prompt: 'Publish the generated report?', requestedAt: '2026-07-14T02:00:01Z' }
   return createRuntime({ initialState: state })
 }
@@ -126,6 +127,29 @@ function createHitlRuntime() {
 
 const hitlRuntime = createHitlRuntime()
 
+function createArtifactRuntime() {
+  const runtime = createRuntime({ capabilities: { send: false, sequence: 'strict-per-run', replay: 'snapshot-and-delta', cancel: false, resume: false, retry: false, intervention: false, artifacts: true } })
+  const dispatch = (sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data']) => runtime.dispatch({
+    schemaVersion: '0.1', eventId: `artifact:${sequence}`, type, threadId, runId: 'artifact-run', sequence,
+    timestamp: `2026-07-15T10:00:${String(sequence).padStart(2, '0')}Z`, data, source: 'storybook',
+  } as CanonicalEvent)
+  dispatch(1, 'run.started', {})
+  dispatch(2, 'activity.started', { activityId: 'report-step', kind: 'workflow', title: 'Generate report' })
+  dispatch(3, 'artifact.created', { artifactId: 'report-v1', name: 'report.html', kind: 'text/html', provenance: { type: 'agent', activityId: 'report-step', label: 'Report agent' } })
+  dispatch(4, 'artifact.available', { artifactId: 'report-v1', uri: 'http://127.0.0.1:6007/preview-fixture.html', sizeBytes: 8192, checksum: { algorithm: 'sha256', value: 'demo-checksum' }, expiresAt: '2026-07-16T10:00:00Z' })
+  dispatch(5, 'artifact.created', { artifactId: 'report-v2', name: 'report.html', kind: 'text/html', version: 2, previousArtifactId: 'report-v1', provenance: { type: 'agent', activityId: 'report-step' } })
+  dispatch(6, 'artifact.failed', { artifactId: 'report-v2', error: { code: 'render_failed', message: 'The updated report could not be rendered.' } })
+  dispatch(7, 'artifact.created', { artifactId: 'dataset', name: 'dataset.csv', kind: 'text/csv' })
+  dispatch(8, 'artifact.created', { artifactId: 'old-export', name: 'old-export.csv', kind: 'text/csv' })
+  dispatch(9, 'artifact.available', { artifactId: 'old-export', uri: 'https://preview.example.invalid/old.csv' })
+  dispatch(10, 'artifact.expired', { artifactId: 'old-export' })
+  return runtime
+}
+
+const artifactRuntime = createArtifactRuntime()
+const artifactRenderers = createRendererRegistry()
+artifactRenderers.artifactPreview('text/html', ({ artifact }) => <SandboxedArtifactFrame artifact={artifact} allowUri={(uri) => uri === 'http://127.0.0.1:6007/preview-fixture.html'} />)
+
 function WorkspaceState() {
   return <main className="story-surface"><div className="story-frame"><AgenticChat
     runtime={workspaceRuntime}
@@ -152,3 +176,4 @@ export const Cancelled: Story = { render: () => <State status="cancelled" /> }
 export const WorkspacePrimitives: Story = { render: () => <WorkspaceState /> }
 export const ParallelSubagents: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={advancedRuntime} runId="advanced-run-2" onSend={async () => undefined} onRetry={async () => undefined} /></div></main> }
 export const HumanInTheLoop: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={hitlRuntime} runId="hitl-run" onSend={async () => undefined} /></div></main> }
+export const ArtifactWorkspace: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={artifactRuntime} renderers={artifactRenderers} runId="artifact-run" onSend={async () => undefined} /></div></main> }

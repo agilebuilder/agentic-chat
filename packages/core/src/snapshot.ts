@@ -15,11 +15,13 @@ export interface CanonicalSnapshotEntities {
   results: Array<{ runId: string; content: RenderableContent }>
   interventions: SnapshotIntervention[]
   tasks: AgentTask[]
-  artifacts: Artifact[]
+  artifacts: SnapshotArtifact[]
 }
 
 /** Schema 0.2 existed before requestedAt was added; imports accept the old omission. */
 export type SnapshotIntervention = Omit<Intervention, 'requestedAt'> & { requestedAt?: string }
+/** Schema 0.2 existed before Artifact version/provenance timestamps. */
+export type SnapshotArtifact = Omit<Artifact, 'version' | 'provenance' | 'createdAt'> & { version?: number; provenance?: Artifact['provenance']; createdAt?: string; sourceActivityId?: string }
 
 /** Stable persistence schema. It intentionally does not expose AgenticState. */
 export interface CanonicalSnapshot {
@@ -34,9 +36,10 @@ export interface CanonicalSnapshot {
 export interface LegacyCanonicalSnapshot {
   schemaVersion: '0.1'
   revision: number
-  state: Omit<AgenticState, 'runs' | 'interventions' | 'taskRevisionByRunId' | 'rootActivityIdsByRunId' | 'childActivityIdsByParentId'> & {
+  state: Omit<AgenticState, 'runs' | 'interventions' | 'artifacts' | 'taskRevisionByRunId' | 'rootActivityIdsByRunId' | 'childActivityIdsByParentId'> & {
     runs: Record<string, Omit<AgentRun, 'attempt'> & { attempt?: number }>
     interventions: Record<string, SnapshotIntervention>
+    artifacts: Record<string, SnapshotArtifact>
     taskRevisionByRunId?: Record<string, number>
     rootActivityIdsByRunId?: Record<string, string[]>
     childActivityIdsByParentId?: Record<string, string[]>
@@ -89,6 +92,9 @@ function rebuildDerivedIndexes(state: AgenticState): AgenticState {
   for (const run of Object.values(state.runs)) {
     if (!Number.isSafeInteger(run.attempt) || run.attempt < 1) run.attempt = 1
   }
+  for (const artifact of Object.values(state.artifacts)) {
+    migrateArtifactDefaults(artifact, state.runs[artifact.runId]?.createdAt)
+  }
   const activities = Object.values(state.activities).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))
   for (const activity of activities) {
     if (activity.parentId) state.childActivityIdsByParentId[activity.parentId] = [...(state.childActivityIdsByParentId[activity.parentId] ?? []), activity.id]
@@ -96,6 +102,14 @@ function rebuildDerivedIndexes(state: AgenticState): AgenticState {
   }
   for (const tool of Object.values(state.toolCalls)) state.activityByToolCallId[tool.id] = tool.activityId
   return state
+}
+
+function migrateArtifactDefaults(artifact: Artifact, fallbackCreatedAt?: string): void {
+  const legacyArtifact = artifact as Artifact & { sourceActivityId?: string }
+  if (!artifact.version) artifact.version = 1
+  if (!artifact.createdAt) artifact.createdAt = fallbackCreatedAt ?? '1970-01-01T00:00:00.000Z'
+  if (!artifact.provenance) artifact.provenance = legacyArtifact.sourceActivityId ? { type: 'agent', activityId: legacyArtifact.sourceActivityId } : { type: 'agent' }
+  delete legacyArtifact.sourceActivityId
 }
 
 export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnapshot): AgenticState {
@@ -125,7 +139,8 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   state.toolCalls = tableFrom(snapshot.entities.toolCalls, 'toolCalls')
   state.interventions = tableFrom(snapshot.entities.interventions, 'interventions') as Record<string, Intervention>
   state.tasks = tableFrom(snapshot.entities.tasks, 'tasks')
-  state.artifacts = tableFrom(snapshot.entities.artifacts, 'artifacts')
+  state.artifacts = tableFrom(snapshot.entities.artifacts, 'artifacts') as Record<string, Artifact>
+  for (const artifact of Object.values(state.artifacts)) migrateArtifactDefaults(artifact, state.runs[artifact.runId]?.createdAt)
   for (const { runId, content } of snapshot.entities.results) {
     if (!runId || state.results[runId]) throw new Error(`results contains duplicate or empty run ID ${runId}`)
     state.results[runId] = structuredClone(content)
@@ -209,6 +224,29 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   }
   for (const artifact of Object.values(state.artifacts)) {
     if (!state.runs[artifact.runId]) throw new Error(`Artifact ${artifact.id} references missing run ${artifact.runId}`)
+    if (!Number.isSafeInteger(artifact.version) || artifact.version < 1) throw new Error(`Artifact ${artifact.id} has invalid version ${artifact.version}`)
+    if (!Number.isFinite(Date.parse(artifact.createdAt))) throw new Error(`Artifact ${artifact.id} has invalid createdAt`)
+    if (!['generating', 'available', 'failed', 'expired'].includes(artifact.status)) throw new Error(`Artifact ${artifact.id} has invalid status ${artifact.status}`)
+    if (!['agent', 'tool', 'user', 'external'].includes(artifact.provenance.type) || (artifact.provenance.label !== undefined && !artifact.provenance.label.trim())) throw new Error(`Artifact ${artifact.id} has invalid provenance`)
+    if (artifact.provenance.activityId && (!state.activities[artifact.provenance.activityId] || state.activities[artifact.provenance.activityId]?.runId !== artifact.runId)) throw new Error(`Artifact ${artifact.id} references invalid source activity ${artifact.provenance.activityId}`)
+    if (artifact.provenance.toolCallId && (!state.toolCalls[artifact.provenance.toolCallId] || state.toolCalls[artifact.provenance.toolCallId]?.runId !== artifact.runId)) throw new Error(`Artifact ${artifact.id} references invalid source tool ${artifact.provenance.toolCallId}`)
+    if (artifact.provenance.type === 'tool' && !artifact.provenance.toolCallId) throw new Error(`Artifact ${artifact.id} tool provenance requires toolCallId`)
+    if (artifact.provenance.activityId && artifact.provenance.toolCallId && state.toolCalls[artifact.provenance.toolCallId]?.activityId !== artifact.provenance.activityId) throw new Error(`Artifact ${artifact.id} source activity and tool do not match`)
+    if (!artifact.previousArtifactId && artifact.version !== 1) throw new Error(`Initial Artifact ${artifact.id} must use version 1`)
+    const predecessor = artifact.previousArtifactId ? state.artifacts[artifact.previousArtifactId] : undefined
+    if (artifact.previousArtifactId && (!predecessor || predecessor.runId !== artifact.runId || predecessor.status === 'generating' || artifact.version !== predecessor.version + 1)) throw new Error(`Artifact ${artifact.id} has invalid predecessor ${artifact.previousArtifactId}`)
+    if (artifact.previousArtifactId && Object.values(state.artifacts).filter((candidate) => candidate.previousArtifactId === artifact.previousArtifactId).length > 1) throw new Error(`Artifact predecessor ${artifact.previousArtifactId} has multiple successors`)
+    if (artifact.previousArtifactId === artifact.id) throw new Error(`Artifact ${artifact.id} cannot version itself`)
+    const visited = new Set([artifact.id])
+    let previousArtifactId = artifact.previousArtifactId
+    while (previousArtifactId) {
+      if (visited.has(previousArtifactId)) throw new Error(`Artifact ${artifact.id} contains a version cycle`)
+      visited.add(previousArtifactId)
+      previousArtifactId = state.artifacts[previousArtifactId]?.previousArtifactId
+    }
+    if (artifact.sizeBytes !== undefined && (!Number.isSafeInteger(artifact.sizeBytes) || artifact.sizeBytes < 0)) throw new Error(`Artifact ${artifact.id} has invalid size`)
+    if (artifact.checksum && (!artifact.checksum.value.trim() || !['sha256', 'sha384', 'sha512', 'other'].includes(artifact.checksum.algorithm))) throw new Error(`Artifact ${artifact.id} has invalid checksum`)
+    if (artifact.expiresAt && !Number.isFinite(Date.parse(artifact.expiresAt))) throw new Error(`Artifact ${artifact.id} has invalid expiresAt`)
   }
   return rebuildDerivedIndexes(state)
 }

@@ -10,6 +10,7 @@ const storyIds = {
   workspace: 'p2-quality-agenticchat-states--workspace-primitives',
   subagents: 'p2-quality-agenticchat-states--parallel-subagents',
   hitl: 'p2-quality-agenticchat-states--human-in-the-loop',
+  artifacts: 'p2-quality-agenticchat-states--artifact-workspace',
 } as const
 
 async function openStory(page: Page, id: string) {
@@ -107,4 +108,27 @@ test('HITL restored terminal records remain visible but inert', async ({ page })
   await expect(expired).toContainText('已过期')
   await expect(resolved.getByRole('button')).toHaveCount(0)
   await expect(expired.getByRole('button')).toHaveCount(0)
+})
+
+test('Artifact provenance links connect the Activity and Artifact', async ({ page }) => {
+  await openStory(page, storyIds.artifacts)
+  const activityLink = page.locator('#ac-activity-report-step .ac-activity-artifacts a').first()
+  const sourceLink = page.locator('#ac-artifact-report-v1 .ac-artifact-source')
+  await expect(activityLink).toHaveAttribute('href', '#ac-artifact-report-v1')
+  await expect(sourceLink).toHaveAttribute('href', '#ac-activity-report-step')
+  await expect(page.locator('#ac-artifact-report-v2')).toContainText('生成失败')
+  await expect(page.locator('#ac-artifact-dataset')).toContainText('生成中')
+  await expect(page.locator('#ac-artifact-old-export')).toContainText('已过期')
+})
+
+test('Artifact iframe preview mounts only after keyboard expansion with sandboxing', async ({ page }) => {
+  await openStory(page, storyIds.artifacts)
+  const preview = page.locator('#ac-artifact-report-v1 .ac-artifact-preview')
+  await expect(preview.locator('iframe')).toHaveCount(0)
+  await preview.locator('summary').focus()
+  await page.keyboard.press('Enter')
+  const frame = preview.locator('iframe')
+  await expect(frame).toBeVisible()
+  await expect(frame).toHaveAttribute('sandbox', '')
+  await expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
 })

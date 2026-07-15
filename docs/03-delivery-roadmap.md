@@ -351,7 +351,7 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 - [x] retry 产生新的 attempt，历史 attempt 可追溯；retry 创建新 Run，保留 `retryOfRunId` 链，公共 conformance、selector、默认历史视图与 capability-gated retry 操作已覆盖；
 - [x] snapshot 后 replay 增量与纯 event replay 得到等价状态；0.2 wire snapshot 与公共 conformance helper 已在 ChatBI、AG-UI、编码 Agent 行为 fixture 的中间运行状态验证；
 - [ ] adapter 遇到未知事件可降级且有 diagnostic；
-- [ ] artifact 来源、版本和状态清晰；
+- [x] artifact 来源、版本和状态清晰；不可变版本链、显式 provenance、完整生命周期、snapshot/conformance、双向导航和拒绝默认的懒加载 sandbox 预览已覆盖；
 - [ ] 完成无障碍、性能和安全 Beta 检查清单；
 - [ ] 公共 API 在整个 Beta 周期内除明确 experimental 部分外无重大重构需求。
 

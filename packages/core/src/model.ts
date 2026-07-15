@@ -144,14 +144,37 @@ export interface AgentTask {
 
 export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
 
+export type ArtifactStatus = 'generating' | 'available' | 'failed' | 'expired'
+
+export interface ArtifactProvenance {
+  type: 'agent' | 'tool' | 'user' | 'external'
+  activityId?: string
+  toolCallId?: string
+  label?: string
+}
+
+export interface ArtifactChecksum {
+  algorithm: 'sha256' | 'sha384' | 'sha512' | 'other'
+  value: string
+}
+
 export interface Artifact {
   id: string
   runId: string
-  sourceActivityId?: string
   name: string
   kind: string
-  status: 'generating' | 'available' | 'failed' | 'expired'
+  status: ArtifactStatus
+  version: number
+  previousArtifactId?: string
+  provenance: ArtifactProvenance
+  createdAt: string
+  availableAt?: string
+  endedAt?: string
   uri?: string
+  sizeBytes?: number
+  checksum?: ArtifactChecksum
+  expiresAt?: string
+  error?: AgentError
 }
 
 export interface AgenticState {

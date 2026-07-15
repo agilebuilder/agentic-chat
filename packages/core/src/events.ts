@@ -1,4 +1,4 @@
-import type { AgentError, InterventionField, InterventionOption, TaskStatus } from './model.js'
+import type { AgentError, ArtifactChecksum, ArtifactProvenance, InterventionField, InterventionOption, TaskStatus } from './model.js'
 
 export interface CanonicalTaskValue {
   id: string
@@ -40,6 +40,10 @@ export type CanonicalEvent =
   | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string; description?: string; risk?: string; impact?: string; options?: InterventionOption[]; fields?: InterventionField[]; expiresAt?: string }>
   | EventEnvelope<'intervention.resolved', { interventionId: string; response: unknown }>
   | EventEnvelope<'intervention.expired', { interventionId: string }>
+  | EventEnvelope<'artifact.created', { artifactId: string; name: string; kind: string; version?: number; previousArtifactId?: string; provenance?: ArtifactProvenance }>
+  | EventEnvelope<'artifact.available', { artifactId: string; uri?: string; sizeBytes?: number; checksum?: ArtifactChecksum; expiresAt?: string }>
+  | EventEnvelope<'artifact.failed', { artifactId: string; error: AgentError }>
+  | EventEnvelope<'artifact.expired', { artifactId: string }>
   | EventEnvelope<'tasks.snapshot', { revision: number; tasks: CanonicalTaskValue[] }>
   | EventEnvelope<'task.patched', { baseRevision: number; revision: number; taskId: string; patch: CanonicalTaskPatch }>
   | EventEnvelope<'source.observed', { sourceType: string }>

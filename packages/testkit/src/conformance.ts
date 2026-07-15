@@ -46,6 +46,20 @@ export function checkInterventionConformance(events: readonly CanonicalEvent[]):
   return { state, issues: [...new Set(issues)] }
 }
 
+/** Checks durable Artifact recovery, provenance, and completed version chains. */
+export function checkArtifactConformance(events: readonly CanonicalEvent[]): ConformanceResult {
+  const createdIndex = events.findIndex((event) => event.type === 'artifact.created')
+  if (createdIndex < 0) return { state: replayEvents(events, createInitialState()), issues: ['fixture must create an Artifact'] }
+  const snapshotResult = checkSnapshotReplayConformance(events, createdIndex + 1)
+  const issues = [...snapshotResult.issues]
+  for (const artifact of Object.values(snapshotResult.state.artifacts)) {
+    if (artifact.status === 'generating') issues.push(`Artifact ${artifact.id} did not reach available, failed, or expired`)
+    if (!Number.isSafeInteger(artifact.version) || artifact.version < 1) issues.push(`Artifact ${artifact.id} has an invalid version`)
+    if (!artifact.provenance.type) issues.push(`Artifact ${artifact.id} has no provenance`)
+  }
+  return { state: snapshotResult.state, issues: [...new Set(issues)] }
+}
+
 /** Checks a retry chain represented as distinct, independently sequenced Run streams. */
 export function checkRetryAttemptConformance(attemptStreams: readonly (readonly CanonicalEvent[])[]): ConformanceResult {
   const issues: string[] = []

@@ -130,6 +130,33 @@ if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
 
 该检查验证 snapshot 中的 pending 恢复、后续 resolved/expired replay，以及同一个 Intervention 不能完成两次。Host/后端负责鉴权、权限错误和 idempotency key 的持久化；不要把前端 disabled 状态当作安全边界。
 
+## Artifact 生命周期
+
+只有在来源协议确实提供 Artifact producer 和字段契约时，adapter 才能声明 `artifacts: true`。一个可用 Artifact 至少经过创建和可用两个权威事件：
+
+```ts
+{ type: 'artifact.created', data: {
+  artifactId: 'report-v2', name: 'report.html', kind: 'text/html',
+  version: 2, previousArtifactId: 'report-v1',
+  provenance: { type: 'tool', activityId: 'render', toolCallId: 'call-render' }
+} }
+{ type: 'artifact.available', data: {
+  artifactId: 'report-v2', uri: 'https://artifacts.example.com/report-v2',
+  sizeBytes: 8192, checksum: { algorithm: 'sha256', value: '...' }
+} }
+```
+
+后续版本必须使用新 ID，version 连续递增并指向同 Run 的直接前序。生成失败发送 `artifact.failed`；已可用内容失效发送 `artifact.expired`。不要因为本地时间超过 `expiresAt` 就由 adapter 伪造过期，也不要把来源 URI 当成已授权下载地址。
+
+```ts
+import { checkArtifactConformance } from '@agentic-chat/testkit'
+
+const result = checkArtifactConformance(events)
+if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
+```
+
+该检查拒绝仍在 generating 的交付结果，以及无效版本链和来源引用。来源协议只有一个含糊的 `artifact.created` 枚举、没有实际 producer 或 payload schema 时，应保持 capability 为 false，并安全降级未知事件。
+
 ### AG-UI Task state 约定（experimental）
 
 AG-UI 的共享 state 不会默认导入 canonical store。当前只识别显式命名空间中的完整任务集合：

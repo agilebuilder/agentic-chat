@@ -11,11 +11,13 @@ describe('renderer registry', () => {
     first.tool('query', renderer)
     first.result('report', renderer)
     first.artifact('text/csv', renderer)
+    first.artifactPreview('text/csv', renderer)
     first.message('markdown', renderer)
 
     expect(first.resolveTool('query')).toBe(renderer)
     expect(first.resolveResult('report')).toBe(renderer)
     expect(first.resolveArtifact('text/csv')).toBe(renderer)
+    expect(first.resolveArtifactPreview('text/csv')).toBe(renderer)
     expect(first.resolveMessage('markdown')).toBe(renderer)
     expect(second.resolveTool('query')).toBeUndefined()
   })

@@ -13,7 +13,7 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 | P3.2 | Canonical snapshot + delta、Task patch/revision 与等价 replay | 已完成 |
 | P3.3 | 并行/父子 Activity、subagent 展示、retry/attempt | 已完成 |
 | P3.4 | Human-in-the-loop 状态机、幂等响应与恢复 | 已完成 |
-| P3.5 | Artifact version/provenance/preview 安全策略 | 待开始 |
+| P3.5 | Artifact version/provenance/preview 安全策略 | 已完成 |
 | P3.6 | 第三个生产风格 adapter 与 runtime 切换示例 | 待开始 |
 | P3.7 | Inspector、诊断、Beta 无障碍/性能/安全门 | 待开始 |
 
@@ -75,6 +75,19 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 - ADR-0008 记录 durable 状态、幂等边界、失败重提和安全责任。
 - core 未压缩 dist 基线约 96.3KB，预算由 96KB 调整为 108KB；react-ui 因完整结构化控件由约 70.6KB 增至 88.2KB，预算由 72KB 调整为 100KB。两者继续由 CI 阻止无界增长。
 
+## P3.5 完成内容
+
+- Artifact 增加不可变版本链、显式 provenance、创建/可用/结束时间、大小、checksum、有效期和结构化错误；
+- 新增 `artifact.created/available/failed/expired` 生命周期，reducer 拒绝断裂版本、跨 Run 前序、无效来源引用和终态复活；
+- 0.2 snapshot 支持完整 Artifact 恢复，并兼容迁移缺少版本、来源和创建时间的旧记录；
+- Runtime/React 增加 Run、Activity 与版本历史 selector/hooks；修复数组 selector 直接用于 `useSyncExternalStore` 时的快照稳定性问题；
+- renderer registry 增加独立 `artifactPreview` 通道，默认 UI 展示生成中、失败、过期、版本历史、来源和 Activity 双向导航；
+- `SandboxedArtifactFrame` 实行拒绝默认策略：用户展开后才挂载、仅允许 http/https、必须通过宿主 `allowUri`，并使用空 sandbox、no-referrer 和 lazy loading；
+- 新增 Artifact conformance helper、编码 Agent fixture、Storybook 状态矩阵、单元测试、键盘预览和 axe 浏览器测试；
+- ChatBI 尚无已验证的 Artifact producer/payload 契约，因此 capability 修正为 `false`，不猜测来源字段；
+- ADR-0009 固化版本、状态、来源、过期和预览授权边界。
+- core 未压缩 dist 基线约 120.0KB，预算由 108KB 调整为 128KB；react-ui 基线约 98.0KB，预算由 100KB 调整为 112KB。两者保留约 8%–10% 余量，并继续由 CI 阻止无界增长。
+
 ## 下一片入口
 
-P3.5 将完善 Artifact version/provenance、preview registry、生成/失败/过期状态，以及 iframe/外链预览安全策略。
+P3.6 将实现第三个生产风格 adapter，并提供同一默认 UI 在多个 runtime 间切换的可运行示例。

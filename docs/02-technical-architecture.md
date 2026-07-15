@@ -237,10 +237,12 @@ P0 必须通过 ADR 固化以下关系，避免同一内容在 Message、Activit
 - `rootActivityIdsByRunId` 与 `childActivityIdsByParentId` 是运行时派生索引，不进入 snapshot wire schema；导入 snapshot 时按 Activity.order 重建；
 - ToolCall 是工具执行的事实源，tool Activity 只引用 `toolCallId`，不复制工具状态；
 - Task 表示计划，不等同于 Activity；二者只能通过显式关联 ID 建立关系；
-- Artifact 是独立可交付实体，通过来源引用关联 Run/Activity；Message 只引用 Artifact；
+- Artifact 是独立可交付实体；每个版本使用独立 ID，通过同 Run 的 `previousArtifactId` 形成连续不可变版本链，并用显式 provenance 关联 Activity/ToolCall；Message 只引用 Artifact；
 - 最终回答以 Message 为可见内容事实源，Activity 可以引用它，但不得复制正文。
 
 具体基数、删除策略、attempt 语义和分支运行关系必须在实现 reducer 前由 fixtures 验证并记录，不允许由 UI 组件临时推断。
+
+Artifact 的 canonical 生命周期为 `generating -> available | failed` 和 `available -> expired`。`expiresAt` 不读取客户端时钟自动转态，权威来源必须发送过期事件。Artifact URI 是不可信元数据而非访问授权；默认 UI 不打开或执行 URI，主动预览必须由宿主注册独立 preview renderer 并执行 URI 白名单、鉴权和 sandbox 策略。详见 [ADR-0009](adr/0009-artifact-version-provenance-and-preview.md)。
 
 ## 5. 事件模型与状态重建
 

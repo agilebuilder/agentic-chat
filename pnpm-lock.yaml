@@ -158,6 +158,9 @@ importers:
       '@agentic-chat/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@agentic-chat/react':
+        specifier: workspace:*
+        version: link:../../packages/react
       '@agentic-chat/react-ui':
         specifier: workspace:*
         version: link:../../packages/react-ui

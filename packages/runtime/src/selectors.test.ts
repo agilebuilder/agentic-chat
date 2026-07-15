@@ -1,6 +1,6 @@
 import { createInitialState, replayEvents, type CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it } from 'vitest'
-import { selectChildActivityIds, selectLatestRunId, selectRootActivityIds, selectRunActivities, selectRunActivityTree, selectRunAttemptHistory, selectRunNeedsAttention } from './selectors.js'
+import { selectArtifactVersionHistory, selectArtifactsForActivity, selectChildActivityIds, selectLatestRunId, selectRootActivityIds, selectRunActivities, selectRunActivityTree, selectRunArtifacts, selectRunAttemptHistory, selectRunNeedsAttention } from './selectors.js'
 
 const events: CanonicalEvent[] = [
   { schemaVersion: '0.1', eventId: 's1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {} },
@@ -44,5 +44,14 @@ describe('runtime selectors', () => {
     attempts.runs.one = { id: 'one', threadId: 'thread-1', status: 'failed', attempt: 1, activityIds: [], createdAt: '2026-07-15T00:00:00Z' }
     attempts.runs.two = { id: 'two', threadId: 'thread-1', status: 'completed', attempt: 2, retryOfRunId: 'one', activityIds: [], createdAt: '2026-07-15T00:01:00Z' }
     expect(selectRunAttemptHistory(attempts, 'two').map((run) => run.id)).toEqual(['one', 'two'])
+  })
+
+  it('selects Artifact source links and version history', () => {
+    const artifacts = createInitialState()
+    artifacts.artifacts.one = { id: 'one', runId: 'run-1', name: 'report', kind: 'text/plain', status: 'available', version: 1, provenance: { type: 'agent', activityId: 'activity-1' }, createdAt: '2026-07-15T00:00:00Z' }
+    artifacts.artifacts.two = { id: 'two', runId: 'run-1', name: 'report', kind: 'text/plain', status: 'generating', version: 2, previousArtifactId: 'one', provenance: { type: 'agent', activityId: 'activity-1' }, createdAt: '2026-07-15T00:01:00Z' }
+    expect(selectRunArtifacts(artifacts, 'run-1').map((artifact) => artifact.id)).toEqual(['one', 'two'])
+    expect(selectArtifactsForActivity(artifacts, 'activity-1').map((artifact) => artifact.id)).toEqual(['one', 'two'])
+    expect(selectArtifactVersionHistory(artifacts, 'two').map((artifact) => artifact.version)).toEqual([1, 2])
   })
 })

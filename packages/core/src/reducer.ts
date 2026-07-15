@@ -97,6 +97,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     activityByToolCallId: { ...state.activityByToolCallId },
     results: { ...state.results },
     interventions: { ...state.interventions },
+    artifacts: { ...state.artifacts },
     tasks: state.tasks,
     taskRevisionByRunId: state.taskRevisionByRunId,
     streams: {
@@ -237,6 +238,40 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     const intervention = next.interventions[event.data.interventionId]
     if (!intervention || intervention.runId !== event.runId || intervention.status !== 'pending') return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} is not pending in this run`)
     next.interventions[intervention.id] = { ...intervention, status: 'expired', expiredAt: event.timestamp }
+  } else if (event.type === 'artifact.created') {
+    if (next.artifacts[event.data.artifactId]) return diagnostic(next, event, 'invalid_transition', `Artifact ${event.data.artifactId} already exists`)
+    if (!event.data.artifactId.trim() || !event.data.name.trim() || !event.data.kind.trim()) return diagnostic(next, event, 'invalid_transition', 'Artifact ID, name and kind must not be empty')
+    const predecessor = event.data.previousArtifactId ? next.artifacts[event.data.previousArtifactId] : undefined
+    const version = event.data.version ?? (predecessor ? predecessor.version + 1 : 1)
+    if (!Number.isSafeInteger(version) || version < 1) return diagnostic(next, event, 'invalid_transition', `Artifact version ${version} is invalid`)
+    if (!event.data.previousArtifactId && version !== 1) return diagnostic(next, event, 'invalid_transition', 'An initial Artifact must use version 1')
+    if (event.data.previousArtifactId === event.data.artifactId) return diagnostic(next, event, 'invalid_transition', 'An Artifact cannot version itself')
+    if (event.data.previousArtifactId && (!predecessor || predecessor.runId !== event.runId || predecessor.status === 'generating' || version !== predecessor.version + 1)) return diagnostic(next, event, 'invalid_transition', `Artifact predecessor ${event.data.previousArtifactId} is incompatible with version ${version}`)
+    if (predecessor && Object.values(next.artifacts).some((artifact) => artifact.previousArtifactId === predecessor.id)) return diagnostic(next, event, 'invalid_transition', `Artifact predecessor ${predecessor.id} already has a successor`)
+    const provenance = event.data.provenance ?? { type: 'agent' as const }
+    if (!['agent', 'tool', 'user', 'external'].includes(provenance.type) || (provenance.label !== undefined && !provenance.label.trim())) return diagnostic(next, event, 'invalid_transition', 'Artifact provenance is invalid')
+    const sourceActivity = provenance.activityId ? next.activities[provenance.activityId] : undefined
+    const sourceTool = provenance.toolCallId ? next.toolCalls[provenance.toolCallId] : undefined
+    if (provenance.activityId && (!sourceActivity || sourceActivity.runId !== event.runId)) return diagnostic(next, event, 'invalid_transition', `Artifact source activity ${provenance.activityId} is not in this run`)
+    if (provenance.toolCallId && (!sourceTool || sourceTool.runId !== event.runId)) return diagnostic(next, event, 'invalid_transition', `Artifact source tool ${provenance.toolCallId} is not in this run`)
+    if (sourceActivity && sourceTool && sourceTool.activityId !== sourceActivity.id) return diagnostic(next, event, 'invalid_transition', 'Artifact source activity and tool do not match')
+    if (provenance.type === 'tool' && !provenance.toolCallId) return diagnostic(next, event, 'invalid_transition', 'Tool provenance requires toolCallId')
+    next.artifacts[event.data.artifactId] = { id: event.data.artifactId, runId: event.runId, name: event.data.name, kind: event.data.kind, status: 'generating', version, provenance: structuredClone(provenance), createdAt: event.timestamp, ...(event.data.previousArtifactId ? { previousArtifactId: event.data.previousArtifactId } : {}) }
+  } else if (event.type === 'artifact.available') {
+    const artifact = next.artifacts[event.data.artifactId]
+    if (!artifact || artifact.runId !== event.runId || artifact.status !== 'generating') return diagnostic(next, event, 'invalid_transition', `Artifact ${event.data.artifactId} is not generating in this run`)
+    if (event.data.sizeBytes !== undefined && (!Number.isSafeInteger(event.data.sizeBytes) || event.data.sizeBytes < 0)) return diagnostic(next, event, 'invalid_transition', `Artifact size ${event.data.sizeBytes} is invalid`)
+    if (event.data.checksum && (!event.data.checksum.value.trim() || !['sha256', 'sha384', 'sha512', 'other'].includes(event.data.checksum.algorithm))) return diagnostic(next, event, 'invalid_transition', 'Artifact checksum is invalid')
+    if (event.data.expiresAt && (!Number.isFinite(Date.parse(event.data.expiresAt)) || Date.parse(event.data.expiresAt) <= Date.parse(event.timestamp))) return diagnostic(next, event, 'invalid_transition', 'Artifact expiry must be after availability')
+    next.artifacts[artifact.id] = { ...artifact, status: 'available', availableAt: event.timestamp, ...(event.data.uri ? { uri: event.data.uri } : {}), ...(event.data.sizeBytes !== undefined ? { sizeBytes: event.data.sizeBytes } : {}), ...(event.data.checksum ? { checksum: structuredClone(event.data.checksum) } : {}), ...(event.data.expiresAt ? { expiresAt: event.data.expiresAt } : {}) }
+  } else if (event.type === 'artifact.failed') {
+    const artifact = next.artifacts[event.data.artifactId]
+    if (!artifact || artifact.runId !== event.runId || artifact.status !== 'generating') return diagnostic(next, event, 'invalid_transition', `Artifact ${event.data.artifactId} is not generating in this run`)
+    next.artifacts[artifact.id] = { ...artifact, status: 'failed', error: event.data.error, endedAt: event.timestamp }
+  } else if (event.type === 'artifact.expired') {
+    const artifact = next.artifacts[event.data.artifactId]
+    if (!artifact || artifact.runId !== event.runId || artifact.status !== 'available') return diagnostic(next, event, 'invalid_transition', `Artifact ${event.data.artifactId} is not available in this run`)
+    next.artifacts[artifact.id] = { ...artifact, status: 'expired', endedAt: event.timestamp }
   } else if (event.type === 'tasks.snapshot') {
     next.tasks = { ...state.tasks }
     next.taskRevisionByRunId = { ...state.taskRevisionByRunId }

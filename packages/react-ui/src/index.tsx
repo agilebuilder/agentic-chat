@@ -1,6 +1,6 @@
-import type { Intervention, InterventionField } from '@agentic-chat/core'
+import type { Artifact, Intervention, InterventionField } from '@agentic-chat/core'
 import { selectRunAttemptHistory, type AgenticRuntime, type RuntimeSnapshot } from '@agentic-chat/runtime'
-import { AgenticChatProvider, useActivity, useArtifact, useChildActivityIds, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRootActivityIds, useRun, useRunResult, useRuntimeSelector, useToolCall, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
+import { AgenticChatProvider, useActivity, useActivityArtifacts, useArtifact, useArtifactVersionHistory, useChildActivityIds, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRootActivityIds, useRun, useRunArtifacts, useRunResult, useRuntimeSelector, useToolCall, type ArtifactPreviewRenderer, type ArtifactPreviewRendererProps, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
 import { Component, useId, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { Markdown } from './markdown.js'
 
@@ -23,15 +23,22 @@ function ActivityRow({ activityId, depth = 0 }: { activityId: string; depth?: nu
   const [expanded, setExpanded] = useState(activity?.status === 'running' || activity?.status === 'failed')
   if (!activity) return null
   const content = tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <div className="ac-activity-title">{activity.text ?? activity.kind}</div>
-  if (activity.kind === 'subagent') return <li className="ac-activity ac-subagent" data-kind={activity.kind} data-state={activity.status} data-depth={depth}>
+  const artifactLinks = <ActivityArtifactLinks activityId={activity.id} />
+  if (activity.kind === 'subagent') return <li className="ac-activity ac-subagent" id={`ac-activity-${activity.id}`} data-kind={activity.kind} data-state={activity.status} data-depth={depth}>
     <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
       <summary><span className="ac-activity-marker" aria-hidden="true" /><span><strong>{activity.text ?? 'Subagent'}</strong><small>{activityStatusLabels[activity.status]} · {childIds.length} 个子活动</small></span></summary>
-      {childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : <div className="ac-subagent-empty">暂无子活动</div>}
+      {artifactLinks}{childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : <div className="ac-subagent-empty">暂无子活动</div>}
     </details>
   </li>
-  return <li className="ac-activity" data-kind={activity.kind} data-state={activity.status} data-depth={depth}><span className="ac-activity-marker" aria-hidden="true" /><div className="ac-activity-body">{content}
+  return <li className="ac-activity" id={`ac-activity-${activity.id}`} data-kind={activity.kind} data-state={activity.status} data-depth={depth}><span className="ac-activity-marker" aria-hidden="true" /><div className="ac-activity-body">{content}{artifactLinks}
     {childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : null}</div>
   </li>
+}
+
+function ActivityArtifactLinks({ activityId }: { activityId: string }) {
+  const artifacts = useActivityArtifacts(activityId)
+  if (artifacts.length === 0) return null
+  return <ul className="ac-activity-artifacts" aria-label="此活动生成的产物">{artifacts.map((artifact) => <li key={artifact.id}><a href={`#ac-artifact-${artifact.id}`}>{artifact.name} · v{artifact.version}</a></li>)}</ul>
 }
 
 function RegisteredTool({ tool, activity, mode }: ToolRendererProps) {
@@ -100,7 +107,23 @@ export function ArtifactCard({ artifactId, mode = 'full' }: { artifactId: string
 }
 
 export function ArtifactFallback({ artifact }: ArtifactRendererProps) {
-  return <article className="ac-artifact" data-kind={artifact.kind} data-state={artifact.status}><strong>{artifact.name}</strong><span>{artifact.kind} · {artifact.status}</span>{artifact.uri ? <code>{artifact.uri}</code> : null}</article>
+  const history = useArtifactVersionHistory(artifact.id)
+  const registry = useRendererRegistry()
+  const rendererVersion = useRendererVersion()
+  const Preview = registry.resolveArtifactPreview(artifact.kind)
+  const source = artifact.provenance.label ?? (artifact.provenance.type === 'tool' ? '工具生成' : artifact.provenance.type === 'user' ? '用户提供' : artifact.provenance.type === 'external' ? '外部来源' : 'Agent 生成')
+  return <article className="ac-artifact" id={`ac-artifact-${artifact.id}`} data-kind={artifact.kind} data-state={artifact.status}><header><strong>{artifact.name}</strong><span>{artifactStatusLabels[artifact.status]}</span></header><div className="ac-artifact-meta"><span>{artifact.kind}</span><span>版本 v{artifact.version}</span><span>{source}</span>{artifact.sizeBytes !== undefined ? <span>{formatBytes(artifact.sizeBytes)}</span> : null}</div>{history.length > 1 ? <ol className="ac-artifact-versions" aria-label="产物版本">{history.map((version) => <li key={version.id} data-current={version.id === artifact.id ? 'true' : undefined}>v{version.version} · {artifactStatusLabels[version.status]}</li>)}</ol> : null}{artifact.provenance.activityId ? <a className="ac-artifact-source" href={`#ac-activity-${artifact.provenance.activityId}`}>查看来源步骤</a> : null}{artifact.status === 'failed' && artifact.error ? <p className="ac-artifact-error" role="status">{artifact.error.message}</p> : null}{artifact.expiresAt ? <small>有效期至 {artifact.expiresAt}</small> : null}{artifact.checksum ? <small>{artifact.checksum.algorithm}: {artifact.checksum.value}</small> : null}{artifact.uri ? <code>{artifact.uri}</code> : null}{Preview && artifact.status === 'available' ? <ArtifactPreviewSlot key={`${artifact.id}:${rendererVersion}`} artifact={artifact} mode="panel" Preview={Preview} /> : null}</article>
+}
+
+function ArtifactPreviewSlot({ artifact, mode, Preview }: ArtifactPreviewRendererProps & { Preview: ArtifactPreviewRenderer }) {
+  const [open, setOpen] = useState(false)
+  return <details className="ac-artifact-preview" onToggle={(event) => setOpen(event.currentTarget.open)}><summary>预览产物</summary>{open ? <RendererErrorBoundary fallback={<Notice tone="error">预览组件加载失败。</Notice>}><Preview artifact={artifact} mode={mode} /></RendererErrorBoundary> : null}</details>
+}
+
+export function SandboxedArtifactFrame({ artifact, allowUri, title }: { artifact: Artifact; allowUri(uri: string, artifact: Artifact): boolean; title?: string }) {
+  const uri = artifact.uri
+  if (!uri || !isSafeHttpUri(uri) || !allowUri(uri, artifact)) return <Notice tone="warning">此产物未通过宿主预览策略。</Notice>
+  return <iframe className="ac-artifact-frame" src={uri} title={title ?? `${artifact.name} 预览`} sandbox="" referrerPolicy="no-referrer" loading="lazy" />
 }
 
 export function MessageView({ messageId, mode = 'full' }: { messageId: string; mode?: RendererMode }) {
@@ -140,10 +163,9 @@ export function TaskPanel({ runId }: { runId: string }) {
 }
 
 export function ArtifactPanel({ runId }: { runId: string }) {
-  const artifactMap = useRuntimeSelector((snapshot) => snapshot.state.artifacts)
-  const artifactIds = Object.values(artifactMap).filter((artifact) => artifact.runId === runId).map((artifact) => artifact.id)
-  if (artifactIds.length === 0) return null
-  return <section className="ac-panel ac-artifact-panel" aria-labelledby={`artifacts-${runId}`}><h3 id={`artifacts-${runId}`}>产物</h3>{artifactIds.map((id) => <ArtifactCard key={id} artifactId={id} mode="compact" />)}</section>
+  const artifacts = useRunArtifacts(runId)
+  if (artifacts.length === 0) return null
+  return <section className="ac-panel ac-artifact-panel" aria-labelledby={`artifacts-${runId}`}><h3 id={`artifacts-${runId}`}>产物</h3>{artifacts.map((artifact) => <ArtifactCard key={artifact.id} artifactId={artifact.id} mode="compact" />)}</section>
 }
 
 export type InterventionResponder = (interventionId: string, response: unknown, idempotencyKey: string) => Promise<void>
@@ -322,6 +344,18 @@ function CancelButton({ runId, onCancel }: { runId: string; onCancel(runId: stri
 }
 
 const stringify = (value: unknown): string => typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+
+const artifactStatusLabels = { generating: '生成中', available: '可用', failed: '生成失败', expired: '已过期' } as const
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function isSafeHttpUri(value: string): boolean {
+  try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
+}
 
 export class ErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode; onError?(error: Error): void }, { failed: boolean }> {
   state = { failed: false }

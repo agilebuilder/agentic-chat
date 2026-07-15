@@ -3,7 +3,7 @@ import { createInitialState, type CanonicalEvent } from '@agentic-chat/core'
 import { AgenticChatProvider, createRendererRegistry } from '@agentic-chat/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { AgenticChat, ArtifactCard, ArtifactPanel, Composer, InterventionPanel, Markdown, MessageList, MessageView, TaskPanel, ThreadList, ToolFallback } from './index.js'
+import { AgenticChat, ArtifactCard, ArtifactPanel, Composer, InterventionPanel, Markdown, MessageList, MessageView, SandboxedArtifactFrame, TaskPanel, ThreadList, ToolFallback } from './index.js'
 
 const events: CanonicalEvent[] = [
   { schemaVersion: '0.1', eventId: 'ui-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {} },
@@ -39,7 +39,7 @@ describe('React default UI', () => {
   it('renders registered message and artifact components with stable fallbacks available', () => {
     const initialState = createInitialState()
     initialState.messages.message = { id: 'message', threadId: 'thread-1', role: 'assistant', content: { kind: 'markdown', value: '# answer' }, createdAt: '2026-07-13T00:00:00Z' }
-    initialState.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available' }
+    initialState.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available', version: 1, provenance: { type: 'agent' }, createdAt: '2026-07-13T00:00:00Z' }
     const runtime = createRuntime({ initialState })
     const renderers = createRendererRegistry()
     renderers.message('markdown', ({ message }) => <p>message: {String(message.content.value)}</p>)
@@ -51,12 +51,49 @@ describe('React default UI', () => {
     expect(html).toContain('artifact: sales.csv')
   })
 
+  it('shows Artifact versions and bidirectional Activity provenance links', () => {
+    const runtime = createRuntime()
+    ;[
+      { schemaVersion: '0.1', eventId: 'a1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-15T10:00:00Z', data: {}, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a2', type: 'activity.started', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-15T10:00:01Z', data: { activityId: 'source', kind: 'workflow', title: 'Create report' }, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a3', type: 'artifact.created', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-15T10:00:02Z', data: { artifactId: 'v1', name: 'report.html', kind: 'text/html', provenance: { type: 'agent', activityId: 'source' } }, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a4', type: 'artifact.available', threadId: 'thread-1', runId: 'run-1', sequence: 4, timestamp: '2026-07-15T10:00:03Z', data: { artifactId: 'v1', sizeBytes: 2048 }, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a5', type: 'artifact.created', threadId: 'thread-1', runId: 'run-1', sequence: 5, timestamp: '2026-07-15T10:00:04Z', data: { artifactId: 'v2', name: 'report.html', kind: 'text/html', version: 2, previousArtifactId: 'v1', provenance: { type: 'agent', activityId: 'source' } }, source: 'ui-test' },
+    ].forEach((item) => runtime.dispatch(item as CanonicalEvent))
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="run-1" onSend={async () => {}} />)
+    expect(html).toContain('版本 v2')
+    expect(html).toContain('2.0 KB')
+    expect(html).toContain('href="#ac-activity-source"')
+    expect(html).toContain('href="#ac-artifact-v1"')
+  })
+
+  it('mounts previews lazily and requires an explicit safe iframe policy', () => {
+    const state = createInitialState()
+    const artifact = { id: 'artifact', runId: 'run-1', name: 'report.html', kind: 'text/html', status: 'available' as const, version: 1, provenance: { type: 'agent' as const }, createdAt: '2026-07-15T10:00:00Z', uri: 'https://preview.example/report' }
+    state.artifacts.artifact = artifact
+    const runtime = createRuntime({ initialState: state })
+    const renderers = createRendererRegistry()
+    renderers.artifactPreview('text/html', () => <span>preview mounted</span>)
+    const card = renderToStaticMarkup(<AgenticChatProvider runtime={runtime} renderers={renderers}><ArtifactCard artifactId="artifact" /></AgenticChatProvider>)
+    expect(card).toContain('预览产物')
+    expect(card).not.toContain('preview mounted')
+
+    const rejectedScheme = renderToStaticMarkup(<SandboxedArtifactFrame artifact={{ ...artifact, uri: 'javascript:alert(1)' }} allowUri={() => true} />)
+    expect(rejectedScheme).not.toContain('<iframe')
+    const rejectedHost = renderToStaticMarkup(<SandboxedArtifactFrame artifact={artifact} allowUri={() => false} />)
+    expect(rejectedHost).not.toContain('<iframe')
+    const allowed = renderToStaticMarkup(<SandboxedArtifactFrame artifact={artifact} allowUri={() => true} />)
+    expect(allowed).toContain('<iframe')
+    expect(allowed).toContain('sandbox=""')
+    expect(allowed).toContain('referrerPolicy="no-referrer"')
+  })
+
   it('renders workspace primitives from normalized state', () => {
     const state = createInitialState()
     state.threads['thread-1'] = { id: 'thread-1', title: '季度分析', messageIds: ['message'], runIds: ['run-1'] }
     state.messages.message = { id: 'message', threadId: 'thread-1', role: 'assistant', content: { kind: 'markdown', value: '**结论**：增长' }, createdAt: '2026-07-13T00:00:00Z' }
     state.tasks.task = { id: 'task', runId: 'run-1', title: '读取数据', status: 'completed' }
-    state.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available', uri: 'https://example.com/sales.csv' }
+    state.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available', version: 1, provenance: { type: 'agent' }, createdAt: '2026-07-13T00:00:00Z', uri: 'https://example.com/sales.csv' }
     const runtime = createRuntime({ initialState: state })
 
     const html = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><ThreadList activeThreadId="thread-1" /><MessageList threadId="thread-1" /><TaskPanel runId="run-1" /><ArtifactPanel runId="run-1" /></AgenticChatProvider>)

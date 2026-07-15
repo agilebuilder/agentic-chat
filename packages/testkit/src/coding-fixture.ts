@@ -9,6 +9,8 @@ export type CodingFixtureEvent =
   | { type: 'approval_resolved'; id: string; response: unknown }
   | { type: 'run_waiting' }
   | { type: 'run_resumed' }
+  | { type: 'artifact_created'; id: string; name: string; kind: string; activityId: string }
+  | { type: 'artifact_available'; id: string; sizeBytes: number }
   | { type: 'activity_finished'; id: string }
   | { type: 'run_finished' }
 
@@ -22,6 +24,8 @@ export const codingAgentSourceFixture: CodingFixtureEvent[] = [
   { type: 'approval_requested', id: 'approval-1', prompt: '允许修改文件？', activityId: 'subagent-code' },
   { type: 'approval_resolved', id: 'approval-1', response: 'approved' },
   { type: 'run_resumed' },
+  { type: 'artifact_created', id: 'patch-1', name: 'changes.patch', kind: 'text/x-diff', activityId: 'subagent-code' },
+  { type: 'artifact_available', id: 'patch-1', sizeBytes: 512 },
   { type: 'activity_finished', id: 'subagent-tests' },
   { type: 'activity_finished', id: 'subagent-code' },
   { type: 'run_finished' },
@@ -39,6 +43,8 @@ export function adaptCodingFixture(source: readonly CodingFixtureEvent[]): Canon
       case 'approval_resolved': return { ...base, type: 'intervention.resolved', data: { interventionId: item.id, response: item.response } }
       case 'run_waiting': return { ...base, type: 'run.status.changed', data: { status: 'awaiting_input' } }
       case 'run_resumed': return { ...base, type: 'run.status.changed', data: { status: 'running' } }
+      case 'artifact_created': return { ...base, type: 'artifact.created', data: { artifactId: item.id, name: item.name, kind: item.kind, provenance: { type: 'agent', activityId: item.activityId } } }
+      case 'artifact_available': return { ...base, type: 'artifact.available', data: { artifactId: item.id, sizeBytes: item.sizeBytes } }
       case 'activity_finished': return { ...base, type: 'activity.completed', data: { activityId: item.id } }
       case 'run_finished': return { ...base, type: 'run.completed', data: {} }
     }

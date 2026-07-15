@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@agentic-chat/core": "workspace:*",
+    "@agentic-chat/react": "workspace:*",
     "@agentic-chat/react-ui": "workspace:*",
     "@agentic-chat/runtime": "workspace:*",
     "react": "^19.0.0",

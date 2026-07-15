@@ -1,6 +1,6 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it } from 'vitest'
-import { checkAdapterConformance, checkInterventionConformance, checkRetryAttemptConformance, checkSnapshotReplayConformance } from './conformance.js'
+import { checkAdapterConformance, checkArtifactConformance, checkInterventionConformance, checkRetryAttemptConformance, checkSnapshotReplayConformance } from './conformance.js'
 
 const event = (sequence: number, type: CanonicalEvent['type']): CanonicalEvent => {
   const base = {
@@ -69,5 +69,15 @@ describe('adapter conformance suite', () => {
       { ...event(6, 'run.completed') },
     ]
     expect(checkInterventionConformance(events).issues).toEqual([])
+  })
+
+  it('checks Artifact recovery and terminal generation state', () => {
+    const events: CanonicalEvent[] = [
+      event(1, 'run.started'),
+      { ...event(2, 'run.completed'), type: 'artifact.created', data: { artifactId: 'report', name: 'report.txt', kind: 'text/plain' } } as CanonicalEvent,
+      { ...event(3, 'run.completed'), type: 'artifact.available', data: { artifactId: 'report', sizeBytes: 10 } } as CanonicalEvent,
+      { ...event(4, 'run.completed') },
+    ]
+    expect(checkArtifactConformance(events).issues).toEqual([])
   })
 })
