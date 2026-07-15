@@ -34,7 +34,7 @@ pnpm verify
 pnpm release:alpha
 ```
 
-该命令使用 npm 的 `alpha` dist-tag，不会覆盖 `latest`。发布前必须完成 npm 登录、组织发布权限和双因素认证配置。
+该命令依赖 `.changeset/pre.json` 中的 `alpha` 预发布模式自动选择 npm dist-tag，不要额外向 `changeset publish` 传入 `--tag alpha`；Changesets 禁止在 pre mode 中同时指定自定义 tag。它不会覆盖 `latest`。发布前必须完成 npm 登录、组织发布权限和双因素认证配置。
 
 ## 后续 Alpha 与退出
 

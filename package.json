@@ -24,7 +24,7 @@
     "changeset:pre-enter": "changeset pre enter alpha",
     "changeset:pre-exit": "changeset pre exit",
     "version:packages": "changeset version",
-    "release:alpha": "pnpm build && changeset publish --tag alpha",
+    "release:alpha": "pnpm build && changeset publish",
     "verify:node": "pnpm --filter @agentic-chat/node-harness test",
     "verify:packages": "node scripts/verify-packages.mjs",
     "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm typecheck && pnpm test && pnpm build && pnpm check:size && pnpm verify:node && pnpm verify:packages"
