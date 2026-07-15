@@ -29,7 +29,7 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: 'pnpm exec vite --host 127.0.0.1 --port 6008 --strictPort',
+      command: 'pnpm exec vite preview --outDir dist --host 127.0.0.1 --port 6008 --strictPort',
       cwd: 'apps/fixture-player',
       url: 'http://127.0.0.1:6008',
       reuseExistingServer: !process.env.CI,
