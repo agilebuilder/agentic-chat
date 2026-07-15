@@ -26,7 +26,7 @@ export interface EventEnvelope<TType extends string, TData> {
 }
 
 export type CanonicalEvent =
-  | EventEnvelope<'run.started', Record<string, never>>
+  | EventEnvelope<'run.started', { attempt?: number; retryOfRunId?: string }>
   | EventEnvelope<'run.status.changed', { status: 'running' | 'awaiting_input' | 'paused' }>
   | EventEnvelope<'status.delta', { activityId: string; content: string }>
   | EventEnvelope<'activity.started', { activityId: string; kind: 'workflow' | 'subagent' | 'custom'; title?: string; parentActivityId?: string }>

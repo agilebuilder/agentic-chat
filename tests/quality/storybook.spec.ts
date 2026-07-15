@@ -8,6 +8,7 @@ const storyIds = {
   failed: 'p2-quality-agenticchat-states--failed',
   cancelled: 'p2-quality-agenticchat-states--cancelled',
   workspace: 'p2-quality-agenticchat-states--workspace-primitives',
+  subagents: 'p2-quality-agenticchat-states--parallel-subagents',
 } as const
 
 async function openStory(page: Page, id: string) {
@@ -49,6 +50,16 @@ test('tool details can be expanded with the keyboard', async ({ page }) => {
   await summary.focus()
   await page.keyboard.press('Enter')
   await expect(details).toHaveAttribute('open', '')
+})
+
+test('subagent children can be expanded with the keyboard', async ({ page }) => {
+  await openStory(page, storyIds.subagents)
+  const details = page.locator('.ac-subagent > details').first()
+  const summary = details.locator(':scope > summary')
+  await summary.focus()
+  await page.keyboard.press('Enter')
+  await expect(details).toHaveAttribute('open', '')
+  await expect(details.locator('.ac-activity-children')).toContainText('run_tests')
 })
 
 test('primary intervention action is first in the workspace tab order', async ({ page }) => {

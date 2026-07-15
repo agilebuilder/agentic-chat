@@ -66,7 +66,7 @@ function State({ status }: { status?: 'running' | 'completed' | 'failed' | 'canc
 
 function createWorkspaceRuntime() {
   const state = createInitialState()
-  state.runs[runId] = { id: runId, threadId, status: 'awaiting_input', activityIds: [], createdAt: '2026-07-14T02:00:00Z' }
+  state.runs[runId] = { id: runId, threadId, status: 'awaiting_input', attempt: 1, activityIds: [], createdAt: '2026-07-14T02:00:00Z' }
   state.tasks['task-1'] = { id: 'task-1', runId, title: 'Inspect the dataset', status: 'completed' }
   state.tasks['task-2'] = { id: 'task-2', runId, title: 'Confirm publication', status: 'blocked' }
   state.taskRevisionByRunId[runId] = 1
@@ -76,6 +76,32 @@ function createWorkspaceRuntime() {
 }
 
 const workspaceRuntime = createWorkspaceRuntime()
+
+function createAdvancedRuntime() {
+  const runtime = createRuntime({
+    capabilities: { send: false, sequence: 'strict-per-run', replay: 'completed-history', cancel: false, resume: false, retry: true, intervention: false, artifacts: false },
+    commands: { retryRun: async () => ({ commandId: 'advanced-run-3', accepted: true }) },
+  })
+  const dispatch = (advancedRunId: string, sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data']) => runtime.dispatch({
+    schemaVersion: '0.1', eventId: `${advancedRunId}:${sequence}`, type, threadId, runId: advancedRunId, sequence,
+    timestamp: `2026-07-14T03:00:${String(sequence).padStart(2, '0')}Z`, data, source: 'storybook',
+  } as CanonicalEvent)
+  dispatch('advanced-run-1', 1, 'run.started', {})
+  dispatch('advanced-run-1', 2, 'run.failed', { error: { code: 'INITIAL_FAILURE', message: 'Initial attempt failed.' } })
+  dispatch('advanced-run-2', 1, 'run.started', { attempt: 2, retryOfRunId: 'advanced-run-1' })
+  dispatch('advanced-run-2', 2, 'activity.started', { activityId: 'subagent-tests', kind: 'subagent', title: 'Test agent' })
+  dispatch('advanced-run-2', 3, 'activity.started', { activityId: 'subagent-code', kind: 'subagent', title: 'Implementation agent' })
+  dispatch('advanced-run-2', 4, 'tool.started', { activityId: 'tool-tests', toolCallId: 'call-tests', name: 'run_tests', parentActivityId: 'subagent-tests' })
+  dispatch('advanced-run-2', 5, 'tool.completed', { toolCallId: 'call-tests', output: '75 passed' })
+  dispatch('advanced-run-2', 6, 'activity.completed', { activityId: 'subagent-tests' })
+  dispatch('advanced-run-2', 7, 'tool.started', { activityId: 'tool-code', toolCallId: 'call-code', name: 'apply_patch', parentActivityId: 'subagent-code' })
+  dispatch('advanced-run-2', 8, 'tool.completed', { toolCallId: 'call-code', output: 'Updated 3 files' })
+  dispatch('advanced-run-2', 9, 'activity.completed', { activityId: 'subagent-code' })
+  dispatch('advanced-run-2', 10, 'run.completed', {})
+  return runtime
+}
+
+const advancedRuntime = createAdvancedRuntime()
 
 function WorkspaceState() {
   return <main className="story-surface"><div className="story-frame"><AgenticChat
@@ -101,3 +127,4 @@ export const Completed: Story = { render: () => <State status="completed" /> }
 export const Failed: Story = { render: () => <State status="failed" /> }
 export const Cancelled: Story = { render: () => <State status="cancelled" /> }
 export const WorkspacePrimitives: Story = { render: () => <WorkspaceState /> }
+export const ParallelSubagents: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={advancedRuntime} runId="advanced-run-2" onSend={async () => undefined} onRetry={async () => undefined} /></div></main> }

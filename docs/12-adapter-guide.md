@@ -65,6 +65,19 @@ const runtime = createRuntime({
 
 `send`、`retryRun` 和 `respond` 的幂等键必须贯穿客户端、API 和存储层。网络重试复用同一个 key，不应为每次 retry 生成新 key。
 
+业务 retry 不得重新发送旧 Run 的 `run.started`。后端应创建新 Run ID，并让新 Run 的首事件携带连续 attempt：
+
+```ts
+{
+  type: 'run.started',
+  runId: 'run-attempt-2',
+  sequence: 1,
+  data: { attempt: 2, retryOfRunId: 'run-attempt-1' },
+}
+```
+
+每个 attempt 有独立的 per-Run sequence；直接前序必须是同 Thread 的终态 Run。Adapter 可用 `checkRetryAttemptConformance([firstAttemptEvents, secondAttemptEvents])` 验证链路。HTTP retry 或 SSE 重连不是业务 attempt，不得增加 `AgentRun.attempt`。
+
 ## 顺序、重放与错误
 
 - `strict-per-run`：每个 Run 从 sequence 1 开始严格递增；缺口会阻塞后续事件，直到补齐。

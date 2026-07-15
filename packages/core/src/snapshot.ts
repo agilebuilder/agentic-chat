@@ -31,7 +31,12 @@ export interface CanonicalSnapshot {
 export interface LegacyCanonicalSnapshot {
   schemaVersion: '0.1'
   revision: number
-  state: Omit<AgenticState, 'taskRevisionByRunId'> & { taskRevisionByRunId?: Record<string, number> }
+  state: Omit<AgenticState, 'runs' | 'taskRevisionByRunId' | 'rootActivityIdsByRunId' | 'childActivityIdsByParentId'> & {
+    runs: Record<string, Omit<AgentRun, 'attempt'> & { attempt?: number }>
+    taskRevisionByRunId?: Record<string, number>
+    rootActivityIdsByRunId?: Record<string, string[]>
+    childActivityIdsByParentId?: Record<string, string[]>
+  }
 }
 
 const values = <T>(table: Record<string, T>): T[] => structuredClone(Object.values(table))
@@ -71,11 +76,33 @@ const tableFrom = <T extends { id: string }>(entities: readonly T[], label: stri
   return table
 }
 
+function rebuildDerivedIndexes(state: AgenticState): AgenticState {
+  state.activityByToolCallId = {}
+  state.rootActivityIdsByRunId = {}
+  state.childActivityIdsByParentId = {}
+  for (const run of Object.values(state.runs)) {
+    if (!Number.isSafeInteger(run.attempt) || run.attempt < 1) run.attempt = 1
+  }
+  const activities = Object.values(state.activities).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))
+  for (const activity of activities) {
+    if (activity.parentId) state.childActivityIdsByParentId[activity.parentId] = [...(state.childActivityIdsByParentId[activity.parentId] ?? []), activity.id]
+    else state.rootActivityIdsByRunId[activity.runId] = [...(state.rootActivityIdsByRunId[activity.runId] ?? []), activity.id]
+  }
+  for (const tool of Object.values(state.toolCalls)) state.activityByToolCallId[tool.id] = tool.activityId
+  return state
+}
+
 export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnapshot): AgenticState {
   assertRevision(snapshot.revision, 'Snapshot revision')
   if (snapshot.schemaVersion === '0.1') {
     const legacy = structuredClone(snapshot.state)
-    return { ...createInitialState(), ...legacy, taskRevisionByRunId: legacy.taskRevisionByRunId ?? {} }
+    return rebuildDerivedIndexes({
+      ...createInitialState(),
+      ...legacy,
+      taskRevisionByRunId: legacy.taskRevisionByRunId ?? {},
+      rootActivityIdsByRunId: legacy.rootActivityIdsByRunId ?? {},
+      childActivityIdsByParentId: legacy.childActivityIdsByParentId ?? {},
+    } as AgenticState)
   }
   if (snapshot.schemaVersion !== '0.2') throw new Error(`Unsupported snapshot schema ${String((snapshot as { schemaVersion?: unknown }).schemaVersion)}`)
 
@@ -83,6 +110,11 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   state.threads = tableFrom(snapshot.entities.threads, 'threads')
   state.messages = tableFrom(snapshot.entities.messages, 'messages')
   state.runs = tableFrom(snapshot.entities.runs, 'runs')
+  // P2 snapshots already used schema 0.2 before Run attempts were introduced.
+  // Treat only an absent value as legacy; malformed explicit values still fail validation below.
+  for (const run of Object.values(state.runs)) {
+    if (run.attempt === undefined) run.attempt = 1
+  }
   state.activities = tableFrom(snapshot.entities.activities, 'activities')
   state.toolCalls = tableFrom(snapshot.entities.toolCalls, 'toolCalls')
   state.interventions = tableFrom(snapshot.entities.interventions, 'interventions')
@@ -112,7 +144,6 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   for (const tool of Object.values(state.toolCalls)) {
     if (!state.activities[tool.activityId]) throw new Error(`Tool call ${tool.id} references missing activity ${tool.activityId}`)
     if (!state.runs[tool.runId]) throw new Error(`Tool call ${tool.id} references missing run ${tool.runId}`)
-    state.activityByToolCallId[tool.id] = tool.activityId
   }
   for (const activity of Object.values(state.activities)) {
     if (!state.runs[activity.runId]) throw new Error(`Activity ${activity.id} references missing run ${activity.runId}`)
@@ -126,6 +157,19 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
     }
   }
   for (const run of Object.values(state.runs)) {
+    if (!Number.isSafeInteger(run.attempt) || run.attempt < 1) throw new Error(`Run ${run.id} has invalid attempt ${run.attempt}`)
+    if (!run.retryOfRunId && run.attempt !== 1) throw new Error(`Initial Run ${run.id} must use attempt 1`)
+    if (run.retryOfRunId && run.attempt < 2) throw new Error(`Retry Run ${run.id} must use attempt 2 or greater`)
+    if (run.retryOfRunId === run.id) throw new Error(`Run ${run.id} cannot retry itself`)
+    const predecessor = run.retryOfRunId ? state.runs[run.retryOfRunId] : undefined
+    if (predecessor && (predecessor.threadId !== run.threadId || !['completed', 'failed', 'cancelled'].includes(predecessor.status) || run.attempt !== predecessor.attempt + 1)) throw new Error(`Run ${run.id} has invalid retry predecessor ${run.retryOfRunId}`)
+    const visited = new Set([run.id])
+    let retryOfRunId = run.retryOfRunId
+    while (retryOfRunId) {
+      if (visited.has(retryOfRunId)) throw new Error(`Run ${run.id} contains a retry cycle`)
+      visited.add(retryOfRunId)
+      retryOfRunId = state.runs[retryOfRunId]?.retryOfRunId
+    }
     for (const activityId of run.activityIds) {
       if (!state.activities[activityId]) throw new Error(`Run ${run.id} references missing activity ${activityId}`)
       if (state.activities[activityId]?.runId !== run.id) throw new Error(`Run ${run.id} references activity ${activityId} from another run`)
@@ -151,5 +195,5 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   for (const artifact of Object.values(state.artifacts)) {
     if (!state.runs[artifact.runId]) throw new Error(`Artifact ${artifact.id} references missing run ${artifact.runId}`)
   }
-  return state
+  return rebuildDerivedIndexes(state)
 }

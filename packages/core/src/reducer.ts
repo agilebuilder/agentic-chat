@@ -5,6 +5,20 @@ const terminalStatuses = new Set<RunStatus>(['completed', 'failed', 'cancelled']
 const maxRetainedDiagnostics = 200
 export const MAX_RETAINED_EVENT_IDS_PER_RUN = 256
 
+function indexActivity(state: AgenticState, runId: string, activityId: string, parentActivityId?: string): void {
+  if (parentActivityId) {
+    state.childActivityIdsByParentId = {
+      ...state.childActivityIdsByParentId,
+      [parentActivityId]: [...(state.childActivityIdsByParentId[parentActivityId] ?? []), activityId],
+    }
+  } else {
+    state.rootActivityIdsByRunId = {
+      ...state.rootActivityIdsByRunId,
+      [runId]: [...(state.rootActivityIdsByRunId[runId] ?? []), activityId],
+    }
+  }
+}
+
 function taskParentCreatesCycle(tasks: AgenticState['tasks'], runId: string, taskId: string, parentId: string | undefined): boolean {
   const visited = new Set([taskId])
   let currentId = parentId
@@ -89,14 +103,28 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
   }
 
   if (event.type === 'run.started') {
-    if (existingRun?.status === 'queued') next.runs[event.runId] = { ...existingRun, status: 'running', startedAt: event.timestamp }
+    const retryOfRunId = event.data.retryOfRunId
+    const predecessor = retryOfRunId ? state.runs[retryOfRunId] : undefined
+    const attempt = event.data.attempt ?? (retryOfRunId ? (predecessor?.attempt ?? 1) + 1 : 1)
+    if (!Number.isSafeInteger(attempt) || attempt < 1) return diagnostic(next, event, 'invalid_transition', `Run attempt ${attempt} is invalid`)
+    if (retryOfRunId === event.runId) return diagnostic(next, event, 'invalid_transition', 'A Run cannot retry itself')
+    if (!retryOfRunId && attempt !== 1) return diagnostic(next, event, 'invalid_transition', 'An initial Run must use attempt 1')
+    if (retryOfRunId && attempt < 2) return diagnostic(next, event, 'invalid_transition', 'A retry Run must use attempt 2 or greater')
+    if (predecessor && (predecessor.threadId !== event.threadId || !terminalStatuses.has(predecessor.status) || attempt !== predecessor.attempt + 1)) {
+      return diagnostic(next, event, 'invalid_transition', `Retry predecessor ${retryOfRunId} is incompatible with attempt ${attempt}`)
+    }
+    if (existingRun?.status === 'queued') {
+      if (existingRun.attempt !== attempt || existingRun.retryOfRunId !== retryOfRunId) return diagnostic(next, event, 'invalid_transition', 'Queued Run retry metadata does not match run.started')
+      next.runs[event.runId] = { ...existingRun, status: 'running', startedAt: event.timestamp }
+    }
     else if (existingRun) return diagnostic(next, event, 'invalid_transition', `Run ${event.runId} has already started`)
-    else next.runs[event.runId] = { id: event.runId, threadId: event.threadId, status: 'running', activityIds: [], createdAt: event.timestamp, startedAt: event.timestamp }
+    else next.runs[event.runId] = { id: event.runId, threadId: event.threadId, status: 'running', attempt, ...(retryOfRunId ? { retryOfRunId } : {}), activityIds: [], createdAt: event.timestamp, startedAt: event.timestamp }
   } else if (!existingRun && (event.type === 'run.cancelled' || event.type === 'run.failed')) {
     next.runs[event.runId] = {
       id: event.runId,
       threadId: event.threadId,
       status: event.type === 'run.cancelled' ? 'cancelled' : 'failed',
+      attempt: 1,
       activityIds: [],
       createdAt: event.timestamp,
       endedAt: event.timestamp,
@@ -115,8 +143,11 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
       ? { ...current, text: `${current.text ?? ''}${event.data.content}` }
       : { id: event.data.activityId, runId: event.runId, kind: 'status', status: 'running', order: existingRun.activityIds.length, text: event.data.content, startedAt: event.timestamp }
     if (!current) next.runs[event.runId] = { ...existingRun, activityIds: [...existingRun.activityIds, event.data.activityId] }
+    if (!current) indexActivity(next, event.runId, event.data.activityId)
   } else if (event.type === 'activity.started') {
     if (next.activities[event.data.activityId]) return diagnostic(next, event, 'invalid_transition', `Activity ${event.data.activityId} has already started`)
+    const parent = event.data.parentActivityId ? next.activities[event.data.parentActivityId] : undefined
+    if (event.data.parentActivityId && (!parent || parent.runId !== event.runId || parent.status !== 'running')) return diagnostic(next, event, 'invalid_transition', `Parent activity ${event.data.parentActivityId} is not running in this run`)
     next.activities[event.data.activityId] = {
       id: event.data.activityId,
       runId: event.runId,
@@ -128,6 +159,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
       ...(event.data.parentActivityId ? { parentId: event.data.parentActivityId } : {}),
     }
     next.runs[event.runId] = { ...existingRun, activityIds: [...existingRun.activityIds, event.data.activityId] }
+    indexActivity(next, event.runId, event.data.activityId, event.data.parentActivityId)
   } else if (event.type === 'activity.completed') {
     const activity = next.activities[event.data.activityId]
     if (!activity || activity.runId !== event.runId || activity.status !== 'running') return diagnostic(next, event, 'invalid_transition', `Activity ${event.data.activityId} is not running in this run`)
@@ -135,10 +167,13 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
   } else if (event.type === 'tool.started') {
     if (next.toolCalls[event.data.toolCallId]) return diagnostic(next, event, 'invalid_transition', `Tool call ${event.data.toolCallId} has already started`)
     if (next.activities[event.data.activityId]) return diagnostic(next, event, 'invalid_transition', `Activity ${event.data.activityId} has already started`)
+    const parent = event.data.parentActivityId ? next.activities[event.data.parentActivityId] : undefined
+    if (event.data.parentActivityId && (!parent || parent.runId !== event.runId || parent.status !== 'running')) return diagnostic(next, event, 'invalid_transition', `Parent activity ${event.data.parentActivityId} is not running in this run`)
     next.toolCalls[event.data.toolCallId] = { id: event.data.toolCallId, runId: event.runId, activityId: event.data.activityId, name: event.data.name, status: 'running', startedAt: event.timestamp, ...(event.data.input === undefined ? {} : { input: event.data.input }) }
     next.activities[event.data.activityId] = { id: event.data.activityId, runId: event.runId, kind: 'tool', status: 'running', order: existingRun.activityIds.length, toolCallId: event.data.toolCallId, startedAt: event.timestamp, ...(event.data.parentActivityId ? { parentId: event.data.parentActivityId } : {}) }
     next.activityByToolCallId[event.data.toolCallId] = event.data.activityId
     next.runs[event.runId] = { ...existingRun, activityIds: [...existingRun.activityIds, event.data.activityId] }
+    indexActivity(next, event.runId, event.data.activityId, event.data.parentActivityId)
   } else if (event.type === 'tool.args.delta') {
     const tool = next.toolCalls[event.data.toolCallId]
     if (!tool || tool.runId !== event.runId || tool.status !== 'running') return diagnostic(next, event, 'invalid_transition', `Tool call ${event.data.toolCallId} is not running in this run`)

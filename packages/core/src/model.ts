@@ -41,6 +41,8 @@ export interface AgentRun {
   id: string
   threadId: string
   status: RunStatus
+  attempt: number
+  retryOfRunId?: string
   activityIds: string[]
   createdAt: string
   startedAt?: string
@@ -133,6 +135,8 @@ export interface AgenticState {
   messages: Record<string, Message>
   runs: Record<string, AgentRun>
   activities: Record<string, Activity>
+  rootActivityIdsByRunId: Record<string, string[]>
+  childActivityIdsByParentId: Record<string, string[]>
   toolCalls: Record<string, ToolCall>
   activityByToolCallId: Record<string, string>
   results: Record<string, RenderableContent>
@@ -145,5 +149,5 @@ export interface AgenticState {
 }
 
 export function createInitialState(): AgenticState {
-  return { threads: {}, messages: {}, runs: {}, activities: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, taskRevisionByRunId: {}, artifacts: {}, streams: {}, diagnostics: [] }
+  return { threads: {}, messages: {}, runs: {}, activities: {}, rootActivityIdsByRunId: {}, childActivityIdsByParentId: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, taskRevisionByRunId: {}, artifacts: {}, streams: {}, diagnostics: [] }
 }

@@ -44,3 +44,21 @@ export function adaptCodingFixture(source: readonly CodingFixtureEvent[]): Canon
     }
   })
 }
+
+const retryEvent = (runId: string, sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data']): CanonicalEvent => ({
+  schemaVersion: '0.1', eventId: `coding-retry:${runId}:${sequence}`, threadId: 'code-retry-thread', runId, sequence,
+  timestamp: `2026-07-15T04:00:0${sequence}Z`, source: 'coding-agent-behavioral-fixture', type, data,
+} as CanonicalEvent)
+
+export const codingAgentRetryAttemptStreams: readonly CanonicalEvent[][] = [
+  [
+    retryEvent('code-attempt-1', 1, 'run.started', {}),
+    retryEvent('code-attempt-1', 2, 'run.failed', { error: { code: 'test_failure', message: 'Tests failed' } }),
+  ],
+  [
+    retryEvent('code-attempt-2', 1, 'run.started', { attempt: 2, retryOfRunId: 'code-attempt-1' }),
+    retryEvent('code-attempt-2', 2, 'activity.started', { activityId: 'fix-tests', kind: 'subagent', title: 'Fix tests' }),
+    retryEvent('code-attempt-2', 3, 'activity.completed', { activityId: 'fix-tests' }),
+    retryEvent('code-attempt-2', 4, 'run.completed', {}),
+  ],
+]

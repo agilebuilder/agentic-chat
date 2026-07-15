@@ -1,5 +1,5 @@
-import type { AgenticRuntime, RuntimeSnapshot } from '@agentic-chat/runtime'
-import { AgenticChatProvider, useActivity, useArtifact, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRun, useRunActivityIds, useRunResult, useRuntimeSelector, useToolCall, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
+import { selectRunAttemptHistory, type AgenticRuntime, type RuntimeSnapshot } from '@agentic-chat/runtime'
+import { AgenticChatProvider, useActivity, useArtifact, useChildActivityIds, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRootActivityIds, useRun, useRunResult, useRuntimeSelector, useToolCall, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
 import { Component, useId, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { Markdown } from './markdown.js'
 
@@ -7,22 +7,29 @@ export { Markdown, type MarkdownProps } from './markdown.js'
 
 const statusLabels = { queued: '排队中', running: '运行中', awaiting_input: '等待操作', paused: '已暂停', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
 const toolStatusLabels = { running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
+const activityStatusLabels = { pending: '等待中', running: '执行中', awaiting_input: '等待操作', completed: '已完成', failed: '失败', cancelled: '已取消', skipped: '已跳过' } as const
 
 export function RunStatus({ runId }: { runId: string }) {
   const run = useRun(runId)
   if (!run) return null
-  return <div className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong></div>
+  return <div className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong>{run.attempt > 1 ? <span>第 {run.attempt} 次尝试</span> : null}</div>
 }
 
-function ActivityRow({ activityId }: { activityId: string }) {
+function ActivityRow({ activityId, depth = 0 }: { activityId: string; depth?: number }) {
   const activity = useActivity(activityId)
+  const childIds = useChildActivityIds(activityId)
   const tool = useToolCall(activity?.toolCallId ?? '')
+  const [expanded, setExpanded] = useState(activity?.status === 'running' || activity?.status === 'failed')
   if (!activity) return null
-  return <li className="ac-activity" data-kind={activity.kind} data-state={activity.status}>
-    <span className="ac-activity-marker" aria-hidden="true" />
-    <div className="ac-activity-body">
-      {tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <div className="ac-activity-title">{activity.text ?? activity.kind}</div>}
-    </div>
+  const content = tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <div className="ac-activity-title">{activity.text ?? activity.kind}</div>
+  if (activity.kind === 'subagent') return <li className="ac-activity ac-subagent" data-kind={activity.kind} data-state={activity.status} data-depth={depth}>
+    <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+      <summary><span className="ac-activity-marker" aria-hidden="true" /><span><strong>{activity.text ?? 'Subagent'}</strong><small>{activityStatusLabels[activity.status]} · {childIds.length} 个子活动</small></span></summary>
+      {childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : <div className="ac-subagent-empty">暂无子活动</div>}
+    </details>
+  </li>
+  return <li className="ac-activity" data-kind={activity.kind} data-state={activity.status} data-depth={depth}><span className="ac-activity-marker" aria-hidden="true" /><div className="ac-activity-body">{content}
+    {childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : null}</div>
   </li>
 }
 
@@ -53,9 +60,16 @@ function DataBlock({ label, value, copyable = false }: { label: string; value: u
 }
 
 export function ActivityTimeline({ runId }: { runId: string }) {
-  const activityIds = useRunActivityIds(runId)
+  const activityIds = useRootActivityIds(runId)
   if (activityIds.length === 0) return <div className="ac-empty">等待 Agent 开始执行…</div>
   return <ol className="ac-timeline" aria-label="运行活动">{activityIds.map((id) => <ActivityRow activityId={id} key={id} />)}</ol>
+}
+
+export function RunAttemptHistory({ runId }: { runId: string }) {
+  const state = useRuntimeSelector((snapshot) => snapshot.state)
+  const attempts = selectRunAttemptHistory(state, runId)
+  if (attempts.length <= 1) return null
+  return <section className="ac-attempts" aria-label="运行尝试历史"><strong>尝试历史</strong><ol>{attempts.map((run) => <li key={run.id} data-current={run.id === runId ? 'true' : undefined}><span>第 {run.attempt} 次</span><small>{statusLabels[run.status]}</small></li>)}</ol></section>
 }
 
 export function RunResult({ runId, mode = 'full' }: { runId: string; mode?: RendererMode }) {
@@ -202,24 +216,32 @@ export interface AgenticChatProps {
   runId?: string
   onSend(message: string): Promise<void>
   onCancel?(runId: string): Promise<void>
+  onRetry?(runId: string): Promise<void>
   onRespond?(interventionId: string, response: unknown): Promise<void>
   theme?: 'system' | 'light' | 'dark'
   className?: string
 }
 
-export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRespond, theme = 'system', className }: AgenticChatProps) {
+export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onRespond, theme = 'system', className }: AgenticChatProps) {
   const rootClassName = ['ac-root', className].filter(Boolean).join(' ')
-  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRespond ? { onRespond } : {})} /></AgenticChatProvider>
+  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onRespond ? { onRespond } : {})} /></AgenticChatProvider>
 }
 
-function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRespond }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
+function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRetry, onRespond }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
   const run = useRun(runId ?? '')
   const running = !!run && ['queued', 'running', 'awaiting_input', 'paused'].includes(run.status)
   return <div className={rootClassName} data-theme={theme}>
     <ConnectionNotice />
-    {runId ? <><RunStatus runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} />{onRespond ? <InterventionPanel runId={runId} onRespond={onRespond} /> : null}{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
+    {runId ? <><RunStatus runId={runId} /><RunAttemptHistory runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} />{onRespond ? <InterventionPanel runId={runId} onRespond={onRespond} /> : null}{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}{onRetry && runtime.capabilities.retry ? <RetryButton runId={runId} onRetry={onRetry} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
     <Composer onSend={onSend} running={running} />
   </div>
+}
+
+function RetryButton({ runId, onRetry }: { runId: string; onRetry(runId: string): Promise<void> }) {
+  const run = useRun(runId)
+  const state = useCommandState(`retry:${runId}`)
+  if (!run || !['failed', 'cancelled'].includes(run.status)) return null
+  return <button className="ac-retry" type="button" disabled={state.status === 'pending'} onClick={() => void onRetry(runId)}>{state.status === 'pending' ? '正在重试…' : '重试'}</button>
 }
 
 function CancelButton({ runId, onCancel }: { runId: string; onCancel(runId: string): Promise<void> }) {

@@ -1,6 +1,6 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it } from 'vitest'
-import { checkAdapterConformance, checkSnapshotReplayConformance } from './conformance.js'
+import { checkAdapterConformance, checkRetryAttemptConformance, checkSnapshotReplayConformance } from './conformance.js'
 
 const event = (sequence: number, type: CanonicalEvent['type']): CanonicalEvent => {
   const base = {
@@ -48,5 +48,14 @@ describe('adapter conformance suite', () => {
     const events = [event(1, 'run.started'), event(2, 'run.completed')]
     expect(checkSnapshotReplayConformance(events, 1).issues).toEqual([])
     expect(checkSnapshotReplayConformance(events, 2).issues).toEqual(['splitIndex must leave a non-empty prefix and suffix'])
+  })
+
+  it('checks retries as distinct per-Run streams', () => {
+    const first = [event(1, 'run.started'), { ...event(2, 'run.completed'), type: 'run.failed', data: { error: { code: 'failed', message: 'Failed' } } } as CanonicalEvent]
+    const second = [
+      { ...event(1, 'run.started'), eventId: 'retry-1', runId: 'run-2', data: { attempt: 2, retryOfRunId: 'run-1' } } as CanonicalEvent,
+      { ...event(2, 'run.completed'), eventId: 'retry-2', runId: 'run-2' } as CanonicalEvent,
+    ]
+    expect(checkRetryAttemptConformance([first, second]).issues).toEqual([])
   })
 })

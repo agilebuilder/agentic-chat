@@ -98,4 +98,38 @@ describe('React default UI', () => {
     expect(html).toContain('前置')
     expect(html).toContain('后置')
   })
+
+  it('groups parallel subagents, nests children, and shows attempt history', () => {
+    const runtime = createRuntime()
+    const dispatch = (runId: string, sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data']) => runtime.dispatch({
+      schemaVersion: '0.1', eventId: `${runId}:${sequence}`, type, threadId: 'thread-1', runId, sequence,
+      timestamp: `2026-07-15T03:00:0${sequence}Z`, data, source: 'ui-test',
+    } as CanonicalEvent)
+    dispatch('attempt-1', 1, 'run.started', {})
+    dispatch('attempt-1', 2, 'run.failed', { error: { code: 'failed', message: 'Failed' } })
+    dispatch('attempt-2', 1, 'run.started', { attempt: 2, retryOfRunId: 'attempt-1' })
+    dispatch('attempt-2', 2, 'activity.started', { activityId: 'subagent-a', kind: 'subagent', title: 'Agent A' })
+    dispatch('attempt-2', 3, 'activity.started', { activityId: 'subagent-b', kind: 'subagent', title: 'Agent B' })
+    dispatch('attempt-2', 4, 'tool.started', { activityId: 'child-tool', toolCallId: 'child-call', name: 'shell', parentActivityId: 'subagent-a' })
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="attempt-2" onSend={async () => {}} />)
+    expect(html).toContain('尝试历史')
+    expect(html).toContain('第 2 次尝试')
+    expect(html).toContain('Agent A')
+    expect(html).toContain('Agent B')
+    expect(html).toContain('<details open="">')
+    expect(html).toContain('shell')
+  })
+
+  it('gates retry action through runtime capability', () => {
+    const runtime = createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'completed-history', cancel: false, resume: false, retry: true, intervention: false, artifacts: false },
+      commands: { retryRun: async () => ({ commandId: 'attempt-2', accepted: true }) },
+    })
+    ;[
+      { schemaVersion: '0.1', eventId: 'retry-1', type: 'run.started', threadId: 'thread-1', runId: 'attempt-1', sequence: 1, timestamp: '2026-07-15T03:00:00Z', data: {}, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'retry-2', type: 'run.failed', threadId: 'thread-1', runId: 'attempt-1', sequence: 2, timestamp: '2026-07-15T03:00:01Z', data: { error: { code: 'failed', message: 'Failed' } }, source: 'ui-test' },
+    ].forEach((item) => runtime.dispatch(item as CanonicalEvent))
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="attempt-1" onSend={async () => {}} onRetry={async () => {}} />)
+    expect(html).toContain('>重试</button>')
+  })
 })

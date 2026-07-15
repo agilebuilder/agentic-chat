@@ -177,6 +177,7 @@ interface AgentRun {
   startedAt?: string
   endedAt?: string
   attempt: number
+  retryOfRunId?: string
   error?: AgentError
   extensions?: Extensions
 }
@@ -231,8 +232,9 @@ Normalized store 可避免每个流式 token 复制整棵嵌套树，并便于�
 P0 必须通过 ADR 固化以下关系，避免同一内容在 Message、Activity 和 Artifact 中各自维护一份状态：
 
 - Thread 是 Message 和 Run 的会话容器；
-- Run 表示一次执行，retry 默认产生同一目标下的新 attempt，是否创建新 Run 由协议 ADR 明确；
+- Run 表示一次执行；P3 起每次业务 retry 创建新 Run，首个 Run 使用 `attempt = 1`，后续 Run 通过 `retryOfRunId` 指向直接前序并将 attempt 加一，终态 Run 永不复活；
 - Activity 表示执行过程节点，父子关系只由 `parentId` 表达，展示顺序不由 timestamp 推断；
+- `rootActivityIdsByRunId` 与 `childActivityIdsByParentId` 是运行时派生索引，不进入 snapshot wire schema；导入 snapshot 时按 Activity.order 重建；
 - ToolCall 是工具执行的事实源，tool Activity 只引用 `toolCallId`，不复制工具状态；
 - Task 表示计划，不等同于 Activity；二者只能通过显式关联 ID 建立关系；
 - Artifact 是独立可交付实体，通过来源引用关联 Run/Activity；Message 只引用 Artifact；

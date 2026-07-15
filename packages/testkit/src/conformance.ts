@@ -17,6 +17,25 @@ export interface SnapshotReplayConformanceResult extends ConformanceResult {
   fullReplayState: AgenticState
 }
 
+/** Checks a retry chain represented as distinct, independently sequenced Run streams. */
+export function checkRetryAttemptConformance(attemptStreams: readonly (readonly CanonicalEvent[])[]): ConformanceResult {
+  const issues: string[] = []
+  if (attemptStreams.length < 2) return { state: createInitialState(), issues: ['retry fixture must contain at least two attempt streams'] }
+  const state = attemptStreams.reduce((current, stream, index) => {
+    const result = checkAdapterConformance(stream)
+    issues.push(...result.issues.map((issue) => `attempt ${index + 1}: ${issue}`))
+    return replayEvents(stream, current)
+  }, createInitialState())
+  const runs = attemptStreams.map((stream) => state.runs[stream[0]?.runId ?? ''])
+  runs.forEach((run, index) => {
+    if (!run) issues.push(`attempt ${index + 1}: Run is missing`)
+    else if (run.attempt !== index + 1) issues.push(`attempt ${index + 1}: expected attempt number ${index + 1}, received ${run.attempt}`)
+    if (index > 0 && run?.retryOfRunId !== runs[index - 1]?.id) issues.push(`attempt ${index + 1}: retry predecessor is incorrect`)
+  })
+  if (new Set(runs.flatMap((run) => run ? [run.id] : [])).size !== runs.filter(Boolean).length) issues.push('attempt Runs must use distinct IDs')
+  return { state, issues: [...new Set(issues)] }
+}
+
 /** Checks that a canonical snapshot taken after the prefix preserves suffix replay semantics. */
 export function checkSnapshotReplayConformance(
   events: readonly CanonicalEvent[],

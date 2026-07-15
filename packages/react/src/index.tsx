@@ -64,6 +64,8 @@ export const useToolCall = (toolCallId: string): ToolCall | undefined => useRunt
 export const useMessage = (messageId: string): Message | undefined => useRuntimeSelector((snapshot) => snapshot.state.messages[messageId])
 export const useArtifact = (artifactId: string): Artifact | undefined => useRuntimeSelector((snapshot) => snapshot.state.artifacts[artifactId])
 export const useRunActivityIds = (runId: string): string[] => useRuntimeSelector((snapshot) => snapshot.state.runs[runId]?.activityIds ?? emptyIds)
+export const useRootActivityIds = (runId: string): readonly string[] => useRuntimeSelector((snapshot) => snapshot.state.rootActivityIdsByRunId[runId] ?? emptyIds)
+export const useChildActivityIds = (activityId: string): readonly string[] => useRuntimeSelector((snapshot) => snapshot.state.childActivityIdsByParentId[activityId] ?? emptyIds)
 export const useRunResult = (runId: string): RenderableContent | undefined => useRuntimeSelector((snapshot) => snapshot.state.results[runId])
 export const useConnection = () => useRuntimeSelector((snapshot) => snapshot.connection)
 export const useCommandState = (key: string) => useRuntimeSelector((snapshot) => snapshot.commands[key] ?? idleCommand)

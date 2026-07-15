@@ -57,6 +57,12 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
     hydrateRun(run) {
       const existing = snapshot.state.runs[run.id]
       if (existing) return
+      if (!Number.isSafeInteger(run.attempt) || run.attempt < 1) throw new Error(`Run attempt ${run.attempt} is invalid`)
+      if (!run.retryOfRunId && run.attempt !== 1) throw new Error('An initial Run must use attempt 1')
+      if (run.retryOfRunId && run.attempt < 2) throw new Error('A retry Run must use attempt 2 or greater')
+      if (run.retryOfRunId === run.id) throw new Error('A Run cannot retry itself')
+      const predecessor = run.retryOfRunId ? snapshot.state.runs[run.retryOfRunId] : undefined
+      if (predecessor && (predecessor.threadId !== run.threadId || !['completed', 'failed', 'cancelled'].includes(predecessor.status) || run.attempt !== predecessor.attempt + 1)) throw new Error(`Retry predecessor ${run.retryOfRunId} is incompatible with attempt ${run.attempt}`)
       snapshot = { ...snapshot, state: { ...snapshot.state, runs: { ...snapshot.state.runs, [run.id]: run } } }
       listeners.forEach((listener) => listener())
     },

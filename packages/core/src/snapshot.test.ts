@@ -31,6 +31,7 @@ describe('canonical snapshot', () => {
     expect(snapshot.entities.tasks).toEqual([{ id: 'task-1', runId: 'r1', title: 'Research', status: 'in_progress' }])
     expect(snapshot.streams).toEqual([{ runId: 'r1', lastSequence: 2 }])
     expect(JSON.stringify(snapshot)).not.toContain('seenEventIds')
+    expect(JSON.stringify(snapshot)).not.toContain('rootActivityIdsByRunId')
     expect(JSON.stringify(snapshot)).not.toContain('ephemeral')
   })
 
@@ -41,6 +42,20 @@ describe('canonical snapshot', () => {
     restored.tasks['task-1']!.title = 'Changed'
     expect(state.runs.r1?.status).toBe('running')
     expect(state.tasks['task-1']?.title).toBe('Research')
+  })
+
+  it('rebuilds Activity hierarchy indexes instead of persisting them', () => {
+    const hierarchyEvents: CanonicalEvent[] = [
+      { ...events[0]!, eventId: 'h1' },
+      { ...events[1]!, eventId: 'h2', type: 'activity.started', data: { activityId: 'parent', kind: 'subagent', title: 'Parent' } },
+      { ...events[2]!, eventId: 'h3', type: 'activity.started', data: { activityId: 'child', kind: 'workflow', parentActivityId: 'parent' } },
+    ]
+    const state = replayEvents(hierarchyEvents, createInitialState())
+    const snapshot = createSnapshot(state, 3)
+    expect(snapshot).not.toHaveProperty('rootActivityIdsByRunId')
+    const restored = importSnapshot(snapshot)
+    expect(restored.rootActivityIdsByRunId.r1).toEqual(['parent'])
+    expect(restored.childActivityIdsByParentId.parent).toEqual(['child'])
   })
 
   it('rejects blocked streams and invalid entity references', () => {
@@ -54,7 +69,21 @@ describe('canonical snapshot', () => {
 
   it('imports legacy 0.1 snapshots for alpha migration', () => {
     const state = replayEvents(events.slice(0, 1), createInitialState())
-    const legacy: LegacyCanonicalSnapshot = { schemaVersion: '0.1', revision: 1, state }
-    expect(importSnapshot(legacy)).toEqual(state)
+    const legacyState = structuredClone(state) as unknown as LegacyCanonicalSnapshot['state']
+    delete legacyState.runs.r1!.attempt
+    delete legacyState.rootActivityIdsByRunId
+    delete legacyState.childActivityIdsByParentId
+    const legacy: LegacyCanonicalSnapshot = { schemaVersion: '0.1', revision: 1, state: legacyState }
+    expect(importSnapshot(legacy).runs.r1?.attempt).toBe(1)
+  })
+
+  it('migrates pre-attempt 0.2 snapshots without accepting malformed attempts', () => {
+    const snapshot = createSnapshot(replayEvents(events.slice(0, 1), createInitialState()), 1)
+    delete (snapshot.entities.runs[0] as { attempt?: number }).attempt
+    expect(importSnapshot(snapshot).runs.r1?.attempt).toBe(1)
+
+    const malformed = createSnapshot(replayEvents(events.slice(0, 1), createInitialState()), 1)
+    malformed.entities.runs[0]!.attempt = 0
+    expect(() => importSnapshot(malformed)).toThrow('invalid attempt')
   })
 })
