@@ -30,7 +30,7 @@ pnpm quality:browser
 
 - `pnpm check:security` 阻止公共实现中的 `dangerouslySetInnerHTML`、动态代码执行，并校验 iframe sandbox/referrer/URI policy 与 Inspector payload-free 约束。
 - Markdown、unsafe URL、Artifact iframe allowlist/lazy mount、Inspector 脱敏均有自动化测试。
-- GitHub `Dependency Security` workflow 使用 Google OSV-Scanner v2 扫描 `pnpm-lock.yaml`，发现已知漏洞即失败，并在每周一重新扫描。
+- GitHub `Dependency Security` workflow 使用 Google OSV-Scanner v2 扫描 `pnpm-lock.yaml`，发现已知漏洞即失败，将 SARIF 上传到 GitHub Security，并在每周一重新扫描；该 Job 只授予官方 reusable workflow 要求的 `actions: read`、`contents: read` 与 `security-events: write`。
 - Inspector 默认关闭；启用后不采集 event data、消息正文、工具输入输出和连接 error。diagnostic message 默认隐藏。
 - 宿主仍负责 API key、鉴权、权限校验、后端幂等、签名 URL 和日志保留策略；前端状态不是授权依据。
 
