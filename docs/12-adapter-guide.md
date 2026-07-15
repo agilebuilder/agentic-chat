@@ -75,13 +75,18 @@ const runtime = createRuntime({
 
 ## Conformance 测试
 
-公开 adapter 至少准备成功、失败和取消夹具，并用 testkit 检查：
+公开 adapter 至少准备成功、失败和取消夹具，并用同一套 testkit 检查：
 
 ```ts
-import { checkRunConformance } from '@agentic-chat/testkit'
+import { checkAdapterConformance } from '@agentic-chat/testkit'
 
-const result = checkRunConformance(events)
+const result = checkAdapterConformance(events, {
+  expectedStatus: 'completed',
+  sequence: adapter.capabilities.sequence,
+})
 if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
 ```
 
-同时覆盖重复事件、sequence gap、重连重放、未知事件、敏感字段脱敏和 capability/command 对齐。自定义 Result、Tool、Artifact 或 Message 的 UI 接入见 [Renderer 指南](09-renderer-guide.md)。
+该检查会验证单 Run/Thread、event ID、顺序、唯一终态、reducer diagnostic、未结束 ToolCall 和重复 replay 幂等性。`checkRunConformance` 暂时保留为兼容别名，新代码应使用 `checkAdapterConformance`。
+
+测试仍需在 adapter 自己的测试中覆盖源协议解析、重连、未知事件降级、敏感字段脱敏和 capability/command 对齐；这些来源特有行为不能只靠 canonical fixture 证明。自定义 Result、Tool、Artifact 或 Message 的 UI 接入见 [Renderer 指南](09-renderer-guide.md)。
