@@ -262,7 +262,7 @@ P1 UI 默认只实现线性 Activity 时间线。父子、并行、Task、通用
 
 ### 5.4 验收标准
 
-- [x] 新建 React/Vite 示例可以只安装公开包运行；仓库内 `apps/minimal` 与 tarball 隔离安装验证均通过；
+- [x] 新建 React/Vite 示例可以只安装公开包运行；仓库内 `apps/minimal`、tarball 隔离安装及发布后 npm registry 空目录安装验证均通过；
 - [x] 最小接入不需要依赖 Zustand 或 ChatBI 类型；
 - [x] core/runtime/adapter 的发布依赖中不存在 React、Vue 和 DOM-only 包；
 - [x] 一个不挂载 React 的 Node harness 可以创建 runtime、replay fixtures、执行 selector 和 command mock；

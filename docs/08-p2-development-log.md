@@ -1,7 +1,7 @@
 # P2 可复用 Alpha 开发记录
 
 > 开始日期：2026-07-13  
-> 当前状态：P2.5–P2.8 已完成；等待 P2.9 发布环境与独立 Quick Start 验收。
+> 当前状态：P2.5–P2.8 已完成；P2.9 npm Alpha 已发布，等待独立 Quick Start 与 ChatBI 最终集成验收。
 
 ## 已确认决策
 
@@ -98,11 +98,19 @@
 ## P2.9 下一步
 
 1. [x] GitHub 鉴权、首次推送和 Actions CI：Node 20、Node 22、浏览器质量三个 job 已完成首次全绿验证；
-2. [ ] npm `@agentic-chat` 组织已鉴权，Changesets 与六个公开包均固定 `access: public`；待执行版本化、dry-run 审查和 alpha 发布；
+2. [x] npm Alpha 已发布并完成公共 registry 空目录安装、ESM 导入、React SSR 与 CSS export 验证：`core/runtime/react/react-ui` 为 `0.1.0-alpha.1`，`adapter-chatbi/testkit` 为 `0.1.0-alpha.0`；
 3. [ ] 由未参与核心开发的人员依据 `docs/14-quick-start-acceptance.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
 4. [ ] 使用发布后的 npm 版本替换 ChatBI 当前本地 `file:` 依赖，执行最终集成验收。
 
 ## 发布前外部依赖
 
-- npm 版本化、Alpha 发布和发布后安装烟雾验证；
 - 安排 Quick Start 独立验收人员。
+
+## P2.9 发布记录（2026-07-15）
+
+- 发布提交：`2ba5982`；发布脚本修复提交：`1992002`；
+- GitHub Actions Node 20、Node 22、Browser quality 全绿；
+- 六个公共包均为 `public`，`@agentic-chat/adapter-ag-ui` 保持 private 且未发布；
+- npm 发布后使用全新目录和全新 npm cache 安装六个确切版本，依赖审计为 0 vulnerabilities；
+- 六个 ESM 入口、`AgenticChat` React SSR 和 `@agentic-chat/react-ui/styles.css` export 验证通过；
+- npm 首次建包同时初始化了 `alpha` 与 `latest`；独立验收固定使用确切版本，不依赖移动的 dist-tag。

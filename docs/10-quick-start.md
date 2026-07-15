@@ -4,11 +4,17 @@
 
 ## 1. 发布状态
 
-只有 npm Alpha 已真实发布后，外部开发者才能执行本页的安装命令。发布前的 `npm publish --dry-run` 和仓库内 workspace 构建不能替代正式 npm 安装验收。
+首批 npm Alpha 已于 2026-07-15 发布并完成空目录安装验收。发布前的 `npm publish --dry-run` 和仓库内 workspace 构建不能替代正式 npm 安装验收。
 
 - 普通体验可以安装 `@alpha`；
 - 正式验收必须使用发布方提供的确切版本，确保结果可复现；
 - 若 `npm view @agentic-chat/core@alpha version` 返回 404，说明尚不能进行正式测试。
+
+本轮 30 分钟独立验收固定使用以下版本：
+
+```bash
+pnpm add @agentic-chat/core@0.1.0-alpha.1 @agentic-chat/runtime@0.1.0-alpha.1 @agentic-chat/react-ui@0.1.0-alpha.1
+```
 
 ## 2. 环境要求
 

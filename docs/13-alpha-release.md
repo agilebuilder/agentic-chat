@@ -34,7 +34,9 @@ pnpm verify
 pnpm release:alpha
 ```
 
-该命令依赖 `.changeset/pre.json` 中的 `alpha` 预发布模式自动选择 npm dist-tag，不要额外向 `changeset publish` 传入 `--tag alpha`；Changesets 禁止在 pre mode 中同时指定自定义 tag。它不会覆盖 `latest`。发布前必须完成 npm 登录、组织发布权限和双因素认证配置。
+该命令依赖 `.changeset/pre.json` 中的 `alpha` 预发布模式自动选择 npm dist-tag，不要额外向 `changeset publish` 传入 `--tag alpha`；Changesets 禁止在 pre mode 中同时指定自定义 tag。发布前必须完成 npm 登录、组织发布权限和双因素认证配置。
+
+首次创建 npm package 时，Changesets 会为尚无稳定版的包同时初始化 `alpha` 和 `latest`，npm registry 不允许删除该初始 `latest`。这不代表 API 已稳定；Alpha 文档、自动化与正式验收必须使用 `@alpha` 或确切 prerelease 版本，不能使用无版本的 `npm install <package>`。稳定版只有经过单独评审后才会主动发布。
 
 ## 后续 Alpha 与退出
 
