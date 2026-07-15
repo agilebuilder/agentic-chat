@@ -12,6 +12,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:css-scope": "node scripts/check-css-scope.mjs",
     "check:size": "node scripts/check-package-size.mjs",
+    "check:security": "node scripts/check-security.mjs",
     "storybook": "pnpm --filter @agentic-chat/storybook dev",
     "storybook:build": "pnpm --filter @agentic-chat/storybook... build",
     "quality:build": "pnpm --filter @agentic-chat/storybook... --filter @agentic-chat/fixture-player... build",
@@ -28,7 +29,7 @@
     "release:alpha": "pnpm build && changeset publish",
     "verify:node": "pnpm --filter @agentic-chat/node-harness test",
     "verify:packages": "node scripts/verify-packages.mjs",
-    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm typecheck && pnpm test && pnpm build && pnpm check:size && pnpm verify:node && pnpm verify:packages"
+    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:security && pnpm typecheck && pnpm test && pnpm build && pnpm check:size && pnpm verify:node && pnpm verify:packages"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

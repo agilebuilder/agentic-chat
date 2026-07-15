@@ -54,6 +54,31 @@ describe('runtime external store contract', () => {
     expect(runtime.getSnapshot().diagnostics[0]?.code).toBe('diagnostic-5')
   })
 
+  it('captures bounded payload-free inspection metadata only when explicitly enabled', () => {
+    const disabled = createRuntime()
+    disabled.dispatch(started)
+    expect(disabled.getSnapshot().experimentalInspection).toBeUndefined()
+
+    const runtime = createRuntime({ experimentalInspection: { maxEvents: 2, maxConnections: 2 } })
+    runtime.dispatch({ ...started, data: { secret: 'must-not-be-captured' } } as CanonicalEvent)
+    runtime.dispatch(started)
+    runtime.dispatch({ ...started, eventId: 'gap', sequence: 3, data: { token: 'also-secret' } } as CanonicalEvent)
+    runtime.setConnection({ status: 'connected', attempt: 1, error: 'credential-like-error' })
+    runtime.setConnection({ status: 'reconnecting', attempt: 2, error: 'another-secret' })
+
+    const inspection = runtime.getSnapshot().experimentalInspection
+    expect(inspection?.events).toHaveLength(2)
+    expect(inspection?.events.map((item) => item.outcome)).toEqual(['ignored', 'diagnostic'])
+    expect(inspection?.connections).toEqual([{ status: 'connected', attempt: 1 }, { status: 'reconnecting', attempt: 2 }])
+    expect(JSON.stringify(inspection)).not.toContain('secret')
+    expect(inspection?.events[1]).not.toHaveProperty('data')
+  })
+
+  it('validates inspection retention limits', () => {
+    expect(() => createRuntime({ experimentalInspection: { maxEvents: 0 } })).toThrow('maxEvents')
+    expect(() => createRuntime({ experimentalInspection: { maxConnections: 1_001 } })).toThrow('maxConnections')
+  })
+
   it('hydrates a queued run without consuming its event cursor', () => {
     const runtime = createRuntime()
     runtime.hydrateRun({ id: 'run-1', threadId: 'thread-1', status: 'queued', attempt: 1, activityIds: [], createdAt: '2026-07-13T00:00:00Z' })

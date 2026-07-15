@@ -352,7 +352,7 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 - [x] snapshot 后 replay 增量与纯 event replay 得到等价状态；0.2 wire snapshot 与公共 conformance helper 已在 ChatBI、AG-UI、编码 Agent 行为 fixture 的中间运行状态验证；
 - [x] adapter 遇到未知事件可降级且有 diagnostic；三种 Adapter 均将未知或未建模事件降级为无 payload 的 `source.observed`，并生成脱敏 diagnostic；
 - [x] artifact 来源、版本和状态清晰；不可变版本链、显式 provenance、完整生命周期、snapshot/conformance、双向导航和拒绝默认的懒加载 sandbox 预览已覆盖；
-- [ ] 完成无障碍、性能和安全 Beta 检查清单；
+- [x] 完成无障碍、性能和安全 Beta 检查清单；axe/键盘/视觉状态矩阵、1,000 Activity 与 opt-in Inspector 长 Run 预算、静态安全门、payload-free Inspector 测试及 OSV lockfile workflow 已纳入自动化，人工 NVDA 抽查保留为 Beta 首发操作项；
 - [ ] 公共 API 在整个 Beta 周期内除明确 experimental 部分外无重大重构需求。
 
 ### 6.5 关于 Claudian 的判定

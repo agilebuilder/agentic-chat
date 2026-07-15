@@ -150,6 +150,27 @@ const artifactRuntime = createArtifactRuntime()
 const artifactRenderers = createRendererRegistry()
 artifactRenderers.artifactPreview('text/html', ({ artifact }) => <SandboxedArtifactFrame artifact={artifact} allowUri={(uri) => uri === 'http://127.0.0.1:6007/preview-fixture.html'} />)
 
+function createInspectorRuntime() {
+  const runtime = createRuntime({ experimentalInspection: { maxEvents: 20, maxConnections: 10 } })
+  const dispatch = (sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data'], eventId = `inspector:${sequence}:${type}`) => runtime.dispatch({
+    schemaVersion: '0.1', eventId, type, threadId, runId: 'inspector-run', sequence,
+    timestamp: `2026-07-15T11:00:0${sequence}Z`, data, source: 'storybook-inspector',
+  } as CanonicalEvent)
+  runtime.setConnection({ status: 'connecting', attempt: 0 })
+  runtime.setConnection({ status: 'connected', attempt: 1 })
+  dispatch(1, 'run.started', {})
+  dispatch(3, 'status.delta', { activityId: 'late-status', content: 'sensitive payload is not retained' }, 'inspector:gap')
+  dispatch(2, 'activity.started', { activityId: 'inspect-step', kind: 'workflow', title: 'Inspect event stream' })
+  dispatch(3, 'activity.completed', { activityId: 'inspect-step' }, 'inspector:activity-completed')
+  runtime.reportDiagnostic({ source: 'demo-adapter', code: 'parse_error', message: 'Malformed source chunk at offset 14', runId: 'inspector-run' })
+  runtime.setConnection({ status: 'reconnecting', attempt: 2, error: 'temporary upstream error' })
+  runtime.setConnection({ status: 'connected', attempt: 2 })
+  dispatch(4, 'run.completed', {})
+  return runtime
+}
+
+const inspectorRuntime = createInspectorRuntime()
+
 function WorkspaceState() {
   return <main className="story-surface"><div className="story-frame"><AgenticChat
     runtime={workspaceRuntime}
@@ -177,3 +198,4 @@ export const WorkspacePrimitives: Story = { render: () => <WorkspaceState /> }
 export const ParallelSubagents: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={advancedRuntime} runId="advanced-run-2" onSend={async () => undefined} onRetry={async () => undefined} /></div></main> }
 export const HumanInTheLoop: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={hitlRuntime} runId="hitl-run" onSend={async () => undefined} /></div></main> }
 export const ArtifactWorkspace: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={artifactRuntime} renderers={artifactRenderers} runId="artifact-run" onSend={async () => undefined} /></div></main> }
+export const RuntimeInspector: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={inspectorRuntime} runId="inspector-run" onSend={async () => undefined} experimentalInspector={{ revealDiagnosticMessages: true }} /></div></main> }

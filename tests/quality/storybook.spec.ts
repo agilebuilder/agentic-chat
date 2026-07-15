@@ -11,6 +11,7 @@ const storyIds = {
   subagents: 'p2-quality-agenticchat-states--parallel-subagents',
   hitl: 'p2-quality-agenticchat-states--human-in-the-loop',
   artifacts: 'p2-quality-agenticchat-states--artifact-workspace',
+  inspector: 'p2-quality-agenticchat-states--runtime-inspector',
 } as const
 
 async function openStory(page: Page, id: string) {
@@ -145,4 +146,17 @@ test('Artifact iframe preview mounts only after keyboard expansion with sandboxi
   await expect(frame).toBeVisible()
   await expect(frame).toHaveAttribute('sandbox', '')
   await expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
+})
+
+test('Runtime Inspector is keyboard operable and exposes metadata without payloads', async ({ page }) => {
+  await openStory(page, storyIds.inspector)
+  const inspector = page.locator('.ac-inspector > details')
+  const summary = inspector.locator(':scope > summary')
+  await summary.focus()
+  await page.keyboard.press('Enter')
+  await expect(inspector).toHaveAttribute('open', '')
+  await expect(inspector).toContainText('sequence_gap')
+  await expect(inspector).toContainText('parse_error')
+  await expect(inspector).toContainText('reconnecting')
+  await expect(inspector).not.toContainText('sensitive payload')
 })

@@ -13,7 +13,8 @@ const activityStatusLabels = { pending: '等待中', running: '执行中', await
 export function RunStatus({ runId }: { runId: string }) {
   const run = useRun(runId)
   if (!run) return null
-  return <div className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong>{run.attempt > 1 ? <span>第 {run.attempt} 次尝试</span> : null}</div>
+  const duration = run.startedAt ? getDuration(run.startedAt, run.endedAt) : undefined
+  return <div className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong>{run.attempt > 1 ? <span>第 {run.attempt} 次尝试</span> : null}{duration ? <span>耗时 {duration}</span> : null}</div>
 }
 
 function ActivityRow({ activityId, depth = 0 }: { activityId: string; depth?: number }) {
@@ -22,7 +23,8 @@ function ActivityRow({ activityId, depth = 0 }: { activityId: string; depth?: nu
   const tool = useToolCall(activity?.toolCallId ?? '')
   const [expanded, setExpanded] = useState(activity?.status === 'running' || activity?.status === 'failed')
   if (!activity) return null
-  const content = tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <div className="ac-activity-title">{activity.text ?? activity.kind}</div>
+  const duration = activity.startedAt ? getDuration(activity.startedAt, activity.endedAt) : undefined
+  const content = tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <><div className="ac-activity-title">{activity.text ?? activity.kind}</div><small className="ac-activity-meta">{activityStatusLabels[activity.status]}{duration ? ` · ${duration}` : ''}</small></>
   const artifactLinks = <ActivityArtifactLinks activityId={activity.id} />
   if (activity.kind === 'subagent') return <li className="ac-activity ac-subagent" id={`ac-activity-${activity.id}`} data-kind={activity.kind} data-state={activity.status} data-depth={depth}>
     <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
@@ -304,22 +306,43 @@ export interface AgenticChatProps {
   onRespond?: InterventionResponder
   theme?: 'system' | 'light' | 'dark'
   className?: string
+  /** Experimental opt-in inspector. Runtime collection must also be enabled explicitly. */
+  experimentalInspector?: { revealDiagnosticMessages?: boolean }
 }
 
-export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onResume, onRespond, theme = 'system', className }: AgenticChatProps) {
+export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onResume, onRespond, theme = 'system', className, experimentalInspector }: AgenticChatProps) {
   const rootClassName = ['ac-root', className].filter(Boolean).join(' ')
-  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onResume ? { onResume } : {})} {...(onRespond ? { onRespond } : {})} /></AgenticChatProvider>
+  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onResume ? { onResume } : {})} {...(onRespond ? { onRespond } : {})} {...(experimentalInspector ? { experimentalInspector } : {})} /></AgenticChatProvider>
 }
 
-function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRetry, onResume, onRespond }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
+function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRetry, onResume, onRespond, experimentalInspector }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
   const run = useRun(runId ?? '')
   const running = !!run && ['queued', 'running', 'awaiting_input', 'paused'].includes(run.status)
   const responder = onRespond ?? (runtime.capabilities.intervention ? runtime.respondToIntervention : undefined)
   return <div className={rootClassName} data-theme={theme}>
     <ConnectionNotice />
+    {experimentalInspector ? <ExperimentalRuntimeInspector {...(runId ? { runId } : {})} {...(experimentalInspector.revealDiagnosticMessages !== undefined ? { revealDiagnosticMessages: experimentalInspector.revealDiagnosticMessages } : {})} /> : null}
     {runId ? <><RunStatus runId={runId} /><RunAttemptHistory runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} /><InterventionPanel runId={runId} {...(responder ? { onRespond: responder } : {})} />{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}{onRetry && runtime.capabilities.retry ? <RetryButton runId={runId} onRetry={onRetry} /> : null}{onResume && runtime.capabilities.resume ? <ResumeButton runId={runId} onResume={onResume} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
     <Composer onSend={onSend} running={running} />
   </div>
+}
+
+export function ExperimentalRuntimeInspector({ runId, revealDiagnosticMessages = false }: { runId?: string; revealDiagnosticMessages?: boolean }) {
+  const snapshot = useRuntimeSelector((value) => value)
+  const inspection = snapshot.experimentalInspection
+  if (!inspection) return <Notice tone="warning" title="Inspector 未启用">创建 Runtime 时传入 experimentalInspection 才会采集有界事件元数据。</Notice>
+  const events = runId ? inspection.events.filter((item) => item.runId === runId) : inspection.events
+  const domainDiagnostics = runId ? snapshot.state.diagnostics.filter((item) => item.runId === runId) : snapshot.state.diagnostics
+  const runtimeDiagnostics = runId ? snapshot.diagnostics.filter((item) => !item.runId || item.runId === runId) : snapshot.diagnostics
+  const diagnosticCount = domainDiagnostics.length + runtimeDiagnostics.length
+  return <aside className="ac-inspector" aria-label="Runtime Inspector">
+    <details><summary><strong>Runtime Inspector</strong><span>{events.length} 个事件 · {diagnosticCount} 条诊断</span></summary>
+      <section aria-labelledby="ac-inspector-connection"><h3 id="ac-inspector-connection">连接</h3><p><strong>{snapshot.connection.status}</strong> · 第 {snapshot.connection.attempt} 次尝试</p>{inspection.connections.length ? <ol className="ac-inspector-connections">{inspection.connections.map((item, index) => <li key={`${item.status}:${item.attempt}:${index}`}>{item.status} · {item.attempt}</li>)}</ol> : null}</section>
+      <section aria-labelledby="ac-inspector-events"><h3 id="ac-inspector-events">事件 envelope</h3>{events.length ? <div className="ac-inspector-table-wrap"><table><thead><tr><th scope="col">序号</th><th scope="col">类型</th><th scope="col">Run</th><th scope="col">结果</th></tr></thead><tbody>{events.map((item, index) => <tr key={`${item.eventId}:${index}`}><td>{item.sequence}</td><td><code>{item.type}</code></td><td><code>{item.runId}</code></td><td data-outcome={item.outcome}>{item.outcome}</td></tr>)}</tbody></table></div> : <p>暂无事件。</p>}</section>
+      <section aria-labelledby="ac-inspector-diagnostics"><h3 id="ac-inspector-diagnostics">诊断</h3>{diagnosticCount ? <ul className="ac-inspector-diagnostics">{domainDiagnostics.map((item, index) => <li key={`domain:${item.eventId}:${index}`}><code>core/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}{runtimeDiagnostics.map((item, index) => <li key={`runtime:${item.source}:${item.code}:${index}`}><code>{item.source}/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}</ul> : <p>暂无诊断。</p>}</section>
+      <p className="ac-inspector-privacy">仅保留事件 envelope 与连接状态；不采集事件 payload、连接错误文本、消息正文或工具参数。</p>
+    </details>
+  </aside>
 }
 
 function ResumeButton({ runId, onResume }: { runId: string; onResume(runId: string): Promise<void> }) {

@@ -1,5 +1,5 @@
 import { compactRunStream, createInitialState, importSnapshot, reduceEvent, type AgentRun, type AgenticState, type CanonicalEvent, type CanonicalSnapshot, type LegacyCanonicalSnapshot } from '@agentic-chat/core'
-import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, type AgentCommands, type CommandState, type ConnectionState, type RuntimeDiagnostic } from './contracts.js'
+import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, type AgentCommands, type CommandState, type ConnectionState, type ExperimentalInspectionOptions, type ExperimentalInspectionSnapshot, type ExperimentalInspectedEvent, type RuntimeDiagnostic } from './contracts.js'
 export * from './contracts.js'
 export * from './selectors.js'
 
@@ -8,6 +8,8 @@ export interface RuntimeSnapshot {
   connection: ConnectionState
   commands: Record<string, CommandState>
   diagnostics: RuntimeDiagnostic[]
+  /** Opt-in, bounded, payload-free development diagnostics. */
+  experimentalInspection?: ExperimentalInspectionSnapshot
 }
 
 export interface AgenticRuntime {
@@ -30,15 +32,21 @@ export interface CreateRuntimeOptions {
   initialSnapshot?: CanonicalSnapshot | LegacyCanonicalSnapshot
   capabilities?: AdapterCapabilities
   commands?: AgentCommands
+  experimentalInspection?: ExperimentalInspectionOptions
 }
 
 export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntime {
   if (options.initialState && options.initialSnapshot) throw new Error('Provide either initialState or initialSnapshot, not both')
+  const inspectionLimits = options.experimentalInspection ? {
+    events: inspectionLimit(options.experimentalInspection.maxEvents, 200, 'maxEvents'),
+    connections: inspectionLimit(options.experimentalInspection.maxConnections, 50, 'maxConnections'),
+  } : undefined
   let snapshot: RuntimeSnapshot = {
     state: options.initialSnapshot ? importSnapshot(options.initialSnapshot) : options.initialState ?? createInitialState(),
     connection: { status: 'idle', attempt: 0 },
     commands: {},
     diagnostics: [],
+    ...(inspectionLimits ? { experimentalInspection: { events: [], connections: [{ status: 'idle', attempt: 0 }] } } : {}),
   }
   const capabilities = options.capabilities ?? noCapabilities
   const commands = options.commands ?? {}
@@ -66,9 +74,11 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
     getSnapshot: () => snapshot,
     getState: () => snapshot.state,
     dispatch(event) {
-      const next = reduceEvent(snapshot.state, event)
-      if (next === snapshot.state) return
-      snapshot = { ...snapshot, state: next }
+      const previous = snapshot.state
+      const next = reduceEvent(previous, event)
+      const inspected = inspectEvent(snapshot.experimentalInspection, event, eventOutcome(previous, next, event), inspectionLimits?.events)
+      if (next === previous && inspected === snapshot.experimentalInspection) return
+      snapshot = { ...snapshot, state: next, ...(inspected ? { experimentalInspection: inspected } : {}) }
       if ((event.type === 'intervention.resolved' || event.type === 'intervention.expired') && next.interventions[event.data.interventionId]?.status !== 'pending') {
         interventionSubmissions.delete(event.data.interventionId)
         const commandKey = `respond:${event.data.interventionId}`
@@ -96,7 +106,12 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       notify()
     },
     setConnection(connection) {
-      snapshot = { ...snapshot, connection }
+      const inspection = snapshot.experimentalInspection
+      const experimentalInspection = inspection && inspectionLimits ? {
+        ...inspection,
+        connections: [...inspection.connections, { status: connection.status, attempt: connection.attempt }].slice(-inspectionLimits.connections),
+      } : undefined
+      snapshot = { ...snapshot, connection, ...(experimentalInspection ? { experimentalInspection } : {}) }
       notify()
     },
     executeCommand,
@@ -141,4 +156,32 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
 
 function fingerprint(value: unknown): string {
   try { return JSON.stringify(value) ?? String(value) } catch { return Object.prototype.toString.call(value) }
+}
+
+function inspectionLimit(value: number | undefined, fallback: number, name: string): number {
+  const resolved = value ?? fallback
+  if (!Number.isSafeInteger(resolved) || resolved < 1 || resolved > 1_000) throw new Error(`experimentalInspection.${name} must be an integer from 1 to 1000`)
+  return resolved
+}
+
+function eventOutcome(previous: AgenticState, next: AgenticState, event: CanonicalEvent): ExperimentalInspectedEvent['outcome'] {
+  if (next === previous) return 'ignored'
+  const before = previous.diagnostics.at(-1)
+  const after = next.diagnostics.at(-1)
+  return after?.eventId === event.eventId && after !== before ? 'diagnostic' : 'applied'
+}
+
+function inspectEvent(inspection: ExperimentalInspectionSnapshot | undefined, event: CanonicalEvent, outcome: ExperimentalInspectedEvent['outcome'], maxEvents: number | undefined): ExperimentalInspectionSnapshot | undefined {
+  if (!inspection || !maxEvents) return inspection
+  const item: ExperimentalInspectedEvent = {
+    eventId: event.eventId,
+    type: event.type,
+    threadId: event.threadId,
+    runId: event.runId,
+    sequence: event.sequence,
+    timestamp: event.timestamp,
+    ...(event.source ? { source: event.source } : {}),
+    outcome,
+  }
+  return { ...inspection, events: [...inspection.events, item].slice(-maxEvents) }
 }

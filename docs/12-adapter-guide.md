@@ -180,6 +180,32 @@ SSE transport 读取 `data:` 后可用 `parseAiSdkSseData` 解析 JSON payload�
 
 该 Adapter 将 `tool-output-available/error` 视为权威执行结果。只有 function call 请求、没有宿主执行结果的来源不得伪造 `tool.completed`。当前 reasoning、file、source 和 `data-*` 默认安全降级；需要映射 Artifact 或可见 reasoning 时应先定义稳定来源契约。
 
+## Experimental Runtime Inspector
+
+本地调试 adapter lifecycle、sequence 和连接重试时，可显式启用 payload-free Inspector：
+
+```tsx
+const runtime = createRuntime({
+  experimentalInspection: { maxEvents: 200, maxConnections: 50 },
+})
+
+adapted.diagnostics.forEach((item) => runtime.reportDiagnostic({
+  source: 'my-adapter',
+  code: item.code,
+  message: item.message, // adapter 必须先脱敏
+  runId,
+}))
+
+<AgenticChat
+  runtime={runtime}
+  runId={runId}
+  onSend={send}
+  experimentalInspector={{}}
+/>
+```
+
+Inspector 只记录 event envelope、applied/ignored/diagnostic 结果和 connection status/attempt，不记录 event `data` 或 connection error。diagnostic message 默认隐藏；仅在可信开发环境中使用 `experimentalInspector={{ revealDiagnosticMessages: true }}`。这不是 event recorder，也不会进入 canonical snapshot。
+
 ### AG-UI Task state 约定（experimental）
 
 AG-UI 的共享 state 不会默认导入 canonical store。当前只识别显式命名空间中的完整任务集合：

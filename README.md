@@ -14,6 +14,8 @@ The project is in Alpha development. The first production integration is ChatBI,
 - `@agentic-chat/adapter-ai-sdk` — AI SDK UI Message Stream v1 adapter with no AI SDK runtime dependency.
 - `@agentic-chat/testkit` — fixtures and adapter conformance helpers.
 
+P3 Beta debugging can explicitly enable the payload-free Runtime Inspector; production collection remains off by default. See [`docs/17-p3-beta-readiness.md`](docs/17-p3-beta-readiness.md) for quality, security, and release gates.
+
 ## Development
 
 ```bash

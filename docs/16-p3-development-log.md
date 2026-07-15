@@ -1,6 +1,6 @@
 # P3 多后端 Beta 开发日志
 
-> 状态：进行中
+> 状态：功能切片完成，Beta 发布准备中
 > 启动日期：2026-07-15
 
 ## 目标与分片
@@ -15,7 +15,7 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 | P3.4 | Human-in-the-loop 状态机、幂等响应与恢复 | 已完成 |
 | P3.5 | Artifact version/provenance/preview 安全策略 | 已完成 |
 | P3.6 | 第三个生产风格 adapter 与 runtime 切换示例 | 已完成 |
-| P3.7 | Inspector、诊断、Beta 无障碍/性能/安全门 | 待开始 |
+| P3.7 | Inspector、诊断、Beta 无障碍/性能/安全门 | 已完成 |
 
 ## P3.1 完成内容
 
@@ -99,6 +99,19 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 - ADR-0010 记录选择 AI SDK 的原因，以及不把 OpenAI Responses function call 伪装成工具执行完成的语义边界；
 - `adapter-ai-sdk` 纳入包边界、尺寸预算、tarball 隔离安装与 Changesets 发布流程。
 
-## 下一片入口
+## P3.7 完成内容
 
-P3.7 将完成 Inspector、连接/解析诊断，以及 Beta 无障碍、性能和安全门。
+- Runtime 新增明确 opt-in 的 `experimentalInspection`：只记录有界 canonical envelope、事件应用结果和不含 error 文本的连接状态历史，默认不采集、不持久化、不上传；
+- 默认 UI 新增 `ExperimentalRuntimeInspector`，统一显示 connection/retry、event envelope、core invariant 与 adapter/transport diagnostic；message 默认隐藏，需宿主显式开启；
+- Run 与非 Tool Activity 增加终态耗时展示，ToolCall 延续已有耗时；timestamp 仅用于展示，不改变 sequence 排序语义；
+- Inspector 加入 Storybook、axe 与键盘测试，全部质量状态继续覆盖窄屏、深色、reduced-motion、HITL 和 sandbox Artifact；
+- 1,000 Activity 性能门增加启用 Inspector 的 2,001 event 有界采集场景；
+- 新增 `check:security`，阻止 HTML 注入/动态执行回归并验证 iframe 与 payload-free Inspector 约束；
+- 新增 Google OSV-Scanner workflow，对 `pnpm-lock.yaml` 执行 push/PR/每周依赖漏洞扫描；pnpm legacy audit endpoint 已退役，不继续把不可用命令作为门；
+- ADR-0011 固化诊断数据边界，`docs/17-p3-beta-readiness.md` 汇总 Beta 无障碍、性能、安全、发布与残余人工检查；
+- 新 API 保持 `experimental*` 命名，不提前冻结为 Beta 稳定核心。
+- runtime 未压缩 dist 为 40.9KB/48KB，react-ui 为 108.5KB/112KB；均通过预算，但 react-ui 仅余约 5%，后续新增面板前应优先拆分可选入口或削减默认包体。
+
+## 下一阶段入口
+
+P3 功能切片已完成。进入 Beta 发布准备时，先完成 NVDA + Edge 人工抽查和公共 API 基线评审，再退出 alpha pre-mode、进入 beta pre-mode；“整个 Beta 周期无重大重构”作为持续验收项保留。
