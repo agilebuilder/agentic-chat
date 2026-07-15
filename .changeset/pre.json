@@ -15,5 +15,8 @@
     "@agentic-chat/runtime": "0.1.0-alpha.0",
     "@agentic-chat/testkit": "0.1.0-alpha.0"
   },
-  "changesets": []
+  "changesets": [
+    "calm-runs-smile",
+    "tall-walls-punch"
+  ]
 }
