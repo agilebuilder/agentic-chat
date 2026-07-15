@@ -2,4 +2,4 @@
 '@agentic-chat/testkit': minor
 ---
 
-Add the public adapter conformance checker with ordering, lifecycle, tool linkage, reducer diagnostic, and replay-idempotency validation.
+Add public adapter conformance checks for ordering, lifecycle, tool linkage, reducer diagnostics, replay idempotency, and snapshot-plus-suffix replay equivalence.

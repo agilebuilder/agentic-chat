@@ -1,5 +1,5 @@
 import type { AgenticState, CanonicalEvent, RunStatus } from '@agentic-chat/core'
-import { createInitialState, replayEvents } from '@agentic-chat/core'
+import { createInitialState, createSnapshot, importSnapshot, replayEvents } from '@agentic-chat/core'
 
 export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-order' | 'unordered'
 
@@ -11,6 +11,35 @@ export interface AdapterConformanceOptions {
 export interface ConformanceResult {
   state: AgenticState
   issues: string[]
+}
+
+export interface SnapshotReplayConformanceResult extends ConformanceResult {
+  fullReplayState: AgenticState
+}
+
+/** Checks that a canonical snapshot taken after the prefix preserves suffix replay semantics. */
+export function checkSnapshotReplayConformance(
+  events: readonly CanonicalEvent[],
+  splitIndex: number,
+): SnapshotReplayConformanceResult {
+  const issues: string[] = []
+  if (!Number.isSafeInteger(splitIndex) || splitIndex < 1 || splitIndex >= events.length) {
+    const state = createInitialState()
+    return { state, fullReplayState: state, issues: ['splitIndex must leave a non-empty prefix and suffix'] }
+  }
+  const prefixState = replayEvents(events.slice(0, splitIndex), createInitialState())
+  const fullReplayState = replayEvents(events, createInitialState())
+  try {
+    const restored = importSnapshot(createSnapshot(prefixState, splitIndex))
+    const state = replayEvents(events.slice(splitIndex), restored)
+    if (JSON.stringify(createSnapshot(state, events.length)) !== JSON.stringify(createSnapshot(fullReplayState, events.length))) {
+      issues.push('snapshot plus suffix replay does not equal full event replay')
+    }
+    return { state, fullReplayState, issues }
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : String(error))
+    return { state: prefixState, fullReplayState, issues }
+  }
 }
 
 const terminalEventTypes = new Set<CanonicalEvent['type']>(['run.completed', 'run.failed', 'run.cancelled'])

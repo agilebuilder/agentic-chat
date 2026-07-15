@@ -1,5 +1,5 @@
 import { createInitialState, replayEvents, type CanonicalEvent } from '@agentic-chat/core'
-import { checkAdapterConformance, rawChatBiCancelledRun, rawChatBiFailedRun, rawChatBiSuccessfulRun, type RawChatBiEvent } from '@agentic-chat/testkit'
+import { checkAdapterConformance, checkSnapshotReplayConformance, rawChatBiCancelledRun, rawChatBiFailedRun, rawChatBiSuccessfulRun, type RawChatBiEvent } from '@agentic-chat/testkit'
 import { describe, expect, it } from 'vitest'
 import { adaptChatBiEvent, type ChatBiRunEvent } from './index.js'
 
@@ -28,5 +28,6 @@ describe('ChatBI fixture conformance', () => {
     const resumed = replayEvents(canonical.slice(2), disconnected)
     expect(resumed.runs['run-success']?.status).toBe('completed')
     expect(resumed.runs['run-success']?.activityIds).toHaveLength(1)
+    expect(checkSnapshotReplayConformance(canonical, 2).issues).toEqual([])
   })
 })

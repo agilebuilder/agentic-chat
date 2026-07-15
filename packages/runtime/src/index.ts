@@ -1,4 +1,4 @@
-import { compactRunStream, createInitialState, reduceEvent, type AgentRun, type AgenticState, type CanonicalEvent } from '@agentic-chat/core'
+import { compactRunStream, createInitialState, importSnapshot, reduceEvent, type AgentRun, type AgenticState, type CanonicalEvent, type CanonicalSnapshot, type LegacyCanonicalSnapshot } from '@agentic-chat/core'
 import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, type AgentCommands, type CommandState, type ConnectionState, type RuntimeDiagnostic } from './contracts.js'
 export * from './contracts.js'
 export * from './selectors.js'
@@ -26,13 +26,15 @@ export interface AgenticRuntime {
 
 export interface CreateRuntimeOptions {
   initialState?: AgenticState
+  initialSnapshot?: CanonicalSnapshot | LegacyCanonicalSnapshot
   capabilities?: AdapterCapabilities
   commands?: AgentCommands
 }
 
 export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntime {
+  if (options.initialState && options.initialSnapshot) throw new Error('Provide either initialState or initialSnapshot, not both')
   let snapshot: RuntimeSnapshot = {
-    state: options.initialState ?? createInitialState(),
+    state: options.initialSnapshot ? importSnapshot(options.initialSnapshot) : options.initialState ?? createInitialState(),
     connection: { status: 'idle', attempt: 0 },
     commands: {},
     diagnostics: [],

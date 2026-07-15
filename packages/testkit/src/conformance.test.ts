@@ -1,6 +1,6 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it } from 'vitest'
-import { checkAdapterConformance } from './conformance.js'
+import { checkAdapterConformance, checkSnapshotReplayConformance } from './conformance.js'
 
 const event = (sequence: number, type: CanonicalEvent['type']): CanonicalEvent => {
   const base = {
@@ -42,5 +42,11 @@ describe('adapter conformance suite', () => {
       'fixture must contain exactly one terminal run event',
       'canonical replay produced 1 diagnostic(s)',
     ]))
+  })
+
+  it('checks snapshot plus suffix replay against full replay', () => {
+    const events = [event(1, 'run.started'), event(2, 'run.completed')]
+    expect(checkSnapshotReplayConformance(events, 1).issues).toEqual([])
+    expect(checkSnapshotReplayConformance(events, 2).issues).toEqual(['splitIndex must leave a non-empty prefix and suffix'])
   })
 })

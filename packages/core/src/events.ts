@@ -1,4 +1,17 @@
-import type { AgentError } from './model.js'
+import type { AgentError, TaskStatus } from './model.js'
+
+export interface CanonicalTaskValue {
+  id: string
+  parentId?: string
+  activityId?: string
+  title: string
+  status: TaskStatus
+}
+
+export type CanonicalTaskPatch =
+  | { operation: 'upsert'; value: Omit<CanonicalTaskValue, 'id'> }
+  | { operation: 'update'; changes: { parentId?: string | null; activityId?: string | null; title?: string; status?: TaskStatus } }
+  | { operation: 'remove' }
 
 export interface EventEnvelope<TType extends string, TData> {
   schemaVersion: '0.1'
@@ -26,6 +39,8 @@ export type CanonicalEvent =
   | EventEnvelope<'result.delta', { delta: string }>
   | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string }>
   | EventEnvelope<'intervention.resolved', { interventionId: string; response: unknown }>
+  | EventEnvelope<'tasks.snapshot', { revision: number; tasks: CanonicalTaskValue[] }>
+  | EventEnvelope<'task.patched', { baseRevision: number; revision: number; taskId: string; patch: CanonicalTaskPatch }>
   | EventEnvelope<'source.observed', { sourceType: string }>
   | EventEnvelope<'run.completed', Record<string, never>>
   | EventEnvelope<'run.failed', { error: AgentError }>

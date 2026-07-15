@@ -69,6 +69,7 @@ function createWorkspaceRuntime() {
   state.runs[runId] = { id: runId, threadId, status: 'awaiting_input', activityIds: [], createdAt: '2026-07-14T02:00:00Z' }
   state.tasks['task-1'] = { id: 'task-1', runId, title: 'Inspect the dataset', status: 'completed' }
   state.tasks['task-2'] = { id: 'task-2', runId, title: 'Confirm publication', status: 'blocked' }
+  state.taskRevisionByRunId[runId] = 1
   state.artifacts['artifact-1'] = { id: 'artifact-1', runId, name: 'Revenue report.csv', kind: 'text/csv', status: 'available', uri: 'https://example.invalid/revenue.csv' }
   state.interventions['approval-1'] = { id: 'approval-1', runId, kind: 'approval', status: 'pending', prompt: 'Publish the generated report?' }
   return createRuntime({ initialState: state })

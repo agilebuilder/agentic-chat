@@ -90,3 +90,31 @@ if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
 该检查会验证单 Run/Thread、event ID、顺序、唯一终态、reducer diagnostic、未结束 ToolCall 和重复 replay 幂等性。`checkRunConformance` 暂时保留为兼容别名，新代码应使用 `checkAdapterConformance`。
 
 测试仍需在 adapter 自己的测试中覆盖源协议解析、重连、未知事件降级、敏感字段脱敏和 capability/command 对齐；这些来源特有行为不能只靠 canonical fixture 证明。自定义 Result、Tool、Artifact 或 Message 的 UI 接入见 [Renderer 指南](09-renderer-guide.md)。
+
+需要验证 snapshot 恢复的 adapter 可以选择一个 Run 中间切点：
+
+```ts
+import { checkSnapshotReplayConformance } from '@agentic-chat/testkit'
+
+const result = checkSnapshotReplayConformance(events, splitIndex)
+if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
+```
+
+该检查先 replay 前缀并创建 0.2 `CanonicalSnapshot`，再导入 snapshot、replay 后缀，最后与完整事件 replay 的持久化结果比较。切点不能位于 sequence gap 后。
+
+### AG-UI Task state 约定（experimental）
+
+AG-UI 的共享 state 不会默认导入 canonical store。当前只识别显式命名空间中的完整任务集合：
+
+```ts
+{
+  agenticChat: {
+    tasks: {
+      revision: 2,
+      items: [{ id: 'research', title: 'Research', status: 'in_progress' }],
+    },
+  },
+}
+```
+
+`STATE_SNAPSHOT` 可携带该结构；`STATE_DELTA` 只接受单个 `add`/`replace` 操作，路径必须精确为 `/agenticChat/tasks`，value 是同一完整结构。任意其他共享状态继续转换为无 payload 的 `source.observed`。这是 0.x experimental 映射，不代表 AG-UI 官方字段。

@@ -1,4 +1,4 @@
-import type { CanonicalEvent } from '@agentic-chat/core'
+import type { CanonicalEvent, CanonicalTaskValue, TaskStatus } from '@agentic-chat/core'
 import type { AdapterCapabilities } from '@agentic-chat/runtime'
 
 export const agUiCapabilities: AdapterCapabilities = {
@@ -52,7 +52,53 @@ export interface AgUiAdaptResult {
   diagnostics: AgUiAdapterDiagnostic[]
 }
 
+export interface AgUiAgenticChatTasksState {
+  revision: number
+  items: CanonicalTaskValue[]
+}
+
 const deterministicEpoch = Date.parse('2026-07-13T00:00:00.000Z')
+const taskStatuses = new Set<TaskStatus>(['pending', 'in_progress', 'blocked', 'completed', 'cancelled'])
+
+const recordOf = (value: unknown): Record<string, unknown> | undefined => (
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+)
+
+const parseTasksState = (value: unknown): AgUiAgenticChatTasksState | undefined => {
+  const state = recordOf(value)
+  if (!state || !Number.isSafeInteger(state.revision) || (state.revision as number) < 1 || !Array.isArray(state.items)) return undefined
+  const items: CanonicalTaskValue[] = []
+  for (const candidate of state.items) {
+    const item = recordOf(candidate)
+    if (!item || typeof item.id !== 'string' || typeof item.title !== 'string' || typeof item.status !== 'string' || !taskStatuses.has(item.status as TaskStatus)) return undefined
+    if (item.parentId !== undefined && typeof item.parentId !== 'string') return undefined
+    if (item.activityId !== undefined && typeof item.activityId !== 'string') return undefined
+    items.push({
+      id: item.id,
+      title: item.title,
+      status: item.status as TaskStatus,
+      ...(typeof item.parentId === 'string' ? { parentId: item.parentId } : {}),
+      ...(typeof item.activityId === 'string' ? { activityId: item.activityId } : {}),
+    })
+  }
+  return { revision: state.revision as number, items }
+}
+
+const tasksFromSnapshot = (snapshot: unknown): { present: boolean; value?: AgUiAgenticChatTasksState } => {
+  const root = recordOf(snapshot)
+  const namespace = recordOf(root?.agenticChat)
+  if (!namespace || !Object.hasOwn(namespace, 'tasks')) return { present: false }
+  const value = parseTasksState(namespace.tasks)
+  return value ? { present: true, value } : { present: true }
+}
+
+const tasksFromDelta = (delta: readonly unknown[]): { present: boolean; value?: AgUiAgenticChatTasksState } => {
+  if (delta.length !== 1) return { present: false }
+  const operation = recordOf(delta[0])
+  if (!operation || !['add', 'replace'].includes(String(operation.op)) || operation.path !== '/agenticChat/tasks') return { present: false }
+  const value = parseTasksState(operation.value)
+  return value ? { present: true, value } : { present: true }
+}
 
 /**
  * Adapts one ordered AG-UI run stream. Canonical sequence numbers describe the
@@ -196,8 +242,28 @@ export function adaptAgUiEvents(sourceEvents: readonly AgUiEvent[]): AgUiAdaptRe
           events.push(observed())
         } else events.push({ ...base, type: 'tool.completed', data: { toolCallId: source.toolCallId, output: source.content } })
         break
-      case 'STATE_SNAPSHOT':
-      case 'STATE_DELTA':
+      case 'STATE_SNAPSHOT': {
+        const tasks = tasksFromSnapshot(source.snapshot)
+        if (!tasks.present) {
+          diagnose('unsupported_event', 'STATE_SNAPSHOT is preserved but not yet modeled', sourceIndex)
+          events.push(observed())
+        } else if (!tasks.value) {
+          diagnose('invalid_event', 'STATE_SNAPSHOT agenticChat.tasks is invalid', sourceIndex)
+          events.push(observed())
+        } else events.push({ ...base, type: 'tasks.snapshot', data: { revision: tasks.value.revision, tasks: tasks.value.items } })
+        break
+      }
+      case 'STATE_DELTA': {
+        const tasks = tasksFromDelta(source.delta)
+        if (!tasks.present) {
+          diagnose('unsupported_event', 'STATE_DELTA is preserved but not yet modeled', sourceIndex)
+          events.push(observed())
+        } else if (!tasks.value) {
+          diagnose('invalid_event', 'STATE_DELTA agenticChat.tasks replacement is invalid', sourceIndex)
+          events.push(observed())
+        } else events.push({ ...base, type: 'tasks.snapshot', data: { revision: tasks.value.revision, tasks: tasks.value.items } })
+        break
+      }
       case 'MESSAGES_SNAPSHOT':
       case 'ACTIVITY_SNAPSHOT':
       case 'ACTIVITY_DELTA':

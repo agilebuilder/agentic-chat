@@ -91,7 +91,7 @@ export interface StreamCursor {
 }
 
 export interface Diagnostic {
-  code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'unknown_event'
+  code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'revision_conflict' | 'unknown_event'
   message: string
   eventId: string
   runId: string
@@ -113,8 +113,10 @@ export interface AgentTask {
   parentId?: string
   activityId?: string
   title: string
-  status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
+  status: TaskStatus
 }
+
+export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
 
 export interface Artifact {
   id: string
@@ -136,11 +138,12 @@ export interface AgenticState {
   results: Record<string, RenderableContent>
   interventions: Record<string, Intervention>
   tasks: Record<string, AgentTask>
+  taskRevisionByRunId: Record<string, number>
   artifacts: Record<string, Artifact>
   streams: Record<string, StreamCursor>
   diagnostics: Diagnostic[]
 }
 
 export function createInitialState(): AgenticState {
-  return { threads: {}, messages: {}, runs: {}, activities: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, artifacts: {}, streams: {}, diagnostics: [] }
+  return { threads: {}, messages: {}, runs: {}, activities: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, taskRevisionByRunId: {}, artifacts: {}, streams: {}, diagnostics: [] }
 }

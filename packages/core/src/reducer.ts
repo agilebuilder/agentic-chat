@@ -5,6 +5,19 @@ const terminalStatuses = new Set<RunStatus>(['completed', 'failed', 'cancelled']
 const maxRetainedDiagnostics = 200
 export const MAX_RETAINED_EVENT_IDS_PER_RUN = 256
 
+function taskParentCreatesCycle(tasks: AgenticState['tasks'], runId: string, taskId: string, parentId: string | undefined): boolean {
+  const visited = new Set([taskId])
+  let currentId = parentId
+  while (currentId) {
+    if (visited.has(currentId)) return true
+    visited.add(currentId)
+    const current = tasks[currentId]
+    if (!current || current.runId !== runId) return false
+    currentId = current.parentId
+  }
+  return false
+}
+
 function diagnostic(state: AgenticState, event: CanonicalEvent, code: Diagnostic['code'], message: string): AgenticState {
   return { ...state, diagnostics: [...state.diagnostics, { code, message, eventId: event.eventId, runId: event.runId }].slice(-maxRetainedDiagnostics) }
 }
@@ -65,6 +78,8 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     activityByToolCallId: { ...state.activityByToolCallId },
     results: { ...state.results },
     interventions: { ...state.interventions },
+    tasks: state.tasks,
+    taskRevisionByRunId: state.taskRevisionByRunId,
     streams: {
       ...state.streams,
       [event.runId]: {
@@ -156,6 +171,70 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     const intervention = next.interventions[event.data.interventionId]
     if (!intervention || intervention.runId !== event.runId || intervention.status !== 'pending') return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} is not pending in this run`)
     next.interventions[intervention.id] = { ...intervention, status: 'resolved', response: event.data.response }
+  } else if (event.type === 'tasks.snapshot') {
+    next.tasks = { ...state.tasks }
+    next.taskRevisionByRunId = { ...state.taskRevisionByRunId }
+    const currentRevision = next.taskRevisionByRunId[event.runId] ?? 0
+    if (!Number.isSafeInteger(event.data.revision) || event.data.revision <= currentRevision) {
+      return diagnostic(next, event, 'revision_conflict', `Task snapshot revision ${event.data.revision} must be greater than ${currentRevision}`)
+    }
+    const taskIds = new Set<string>()
+    for (const task of event.data.tasks) {
+      if (!task.id || taskIds.has(task.id)) return diagnostic(next, event, 'invalid_transition', `Task snapshot contains duplicate or empty task ID ${task.id}`)
+      const existingTaskWithId = next.tasks[task.id]
+      if (existingTaskWithId && existingTaskWithId.runId !== event.runId) return diagnostic(next, event, 'invalid_transition', `Task ${task.id} belongs to another run`)
+      taskIds.add(task.id)
+    }
+    for (const task of event.data.tasks) {
+      if (task.parentId && !taskIds.has(task.parentId)) return diagnostic(next, event, 'invalid_transition', `Task ${task.id} references missing parent ${task.parentId}`)
+    }
+    const snapshotTasks = Object.fromEntries(event.data.tasks.map((task) => [task.id, { ...task, runId: event.runId }]))
+    for (const task of event.data.tasks) {
+      if (taskParentCreatesCycle(snapshotTasks, event.runId, task.id, task.parentId)) return diagnostic(next, event, 'invalid_transition', `Task ${task.id} creates a parent cycle`)
+    }
+    for (const task of Object.values(next.tasks)) {
+      if (task.runId === event.runId) delete next.tasks[task.id]
+    }
+    for (const task of event.data.tasks) next.tasks[task.id] = { ...task, runId: event.runId }
+    next.taskRevisionByRunId[event.runId] = event.data.revision
+  } else if (event.type === 'task.patched') {
+    next.tasks = { ...state.tasks }
+    next.taskRevisionByRunId = { ...state.taskRevisionByRunId }
+    const currentRevision = next.taskRevisionByRunId[event.runId] ?? 0
+    if (event.data.baseRevision !== currentRevision || event.data.revision !== currentRevision + 1) {
+      return diagnostic(next, event, 'revision_conflict', `Task patch expected base ${currentRevision} and revision ${currentRevision + 1}`)
+    }
+    const existingTask = next.tasks[event.data.taskId]
+    if (existingTask && existingTask.runId !== event.runId) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} belongs to another run`)
+    const patch = event.data.patch
+    if (patch.operation === 'remove') {
+      if (!existingTask) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} does not exist`)
+      if (Object.values(next.tasks).some((task) => task.runId === event.runId && task.parentId === existingTask.id)) {
+        return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} still has child tasks`)
+      }
+      delete next.tasks[event.data.taskId]
+    } else if (patch.operation === 'upsert') {
+      const parentId = patch.value.parentId
+      if (parentId && (!next.tasks[parentId] || next.tasks[parentId]?.runId !== event.runId)) {
+        return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} references missing parent ${parentId}`)
+      }
+      if (taskParentCreatesCycle(next.tasks, event.runId, event.data.taskId, parentId)) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} creates a parent cycle`)
+      next.tasks[event.data.taskId] = { id: event.data.taskId, runId: event.runId, ...patch.value }
+    } else {
+      if (!existingTask) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} does not exist`)
+      const { parentId, activityId, ...changes } = patch.changes
+      if (parentId && (!next.tasks[parentId] || next.tasks[parentId]?.runId !== event.runId || parentId === existingTask.id)) {
+        return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} references invalid parent ${parentId}`)
+      }
+      if (parentId && taskParentCreatesCycle(next.tasks, event.runId, event.data.taskId, parentId)) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} creates a parent cycle`)
+      const updatedTask = { ...existingTask, ...changes }
+      if (parentId === null) delete updatedTask.parentId
+      else if (parentId !== undefined) updatedTask.parentId = parentId
+      if (activityId === null) delete updatedTask.activityId
+      else if (activityId !== undefined) updatedTask.activityId = activityId
+      next.tasks[event.data.taskId] = updatedTask
+    }
+    next.taskRevisionByRunId[event.runId] = event.data.revision
   } else if (event.type === 'source.observed') {
     // A sequenced source event outside the current canonical slice still advances the cursor.
   } else {

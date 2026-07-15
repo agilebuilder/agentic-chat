@@ -349,7 +349,7 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 - [ ] intervention 在刷新后仍能恢复 pending/resolved 状态；
 - [ ] 重复提交 approval 不会执行两次；
 - [ ] retry 产生新的 attempt，历史 attempt 可追溯；
-- [ ] snapshot 后 replay 增量与纯 event replay 得到等价状态；
+- [x] snapshot 后 replay 增量与纯 event replay 得到等价状态；0.2 wire snapshot 与公共 conformance helper 已在 ChatBI、AG-UI、编码 Agent 行为 fixture 的中间运行状态验证；
 - [ ] adapter 遇到未知事件可降级且有 diagnostic；
 - [ ] artifact 来源、版本和状态清晰；
 - [ ] 完成无障碍、性能和安全 Beta 检查清单；

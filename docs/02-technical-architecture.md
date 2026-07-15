@@ -278,6 +278,10 @@ interface EventEnvelope<TType extends string, TData> {
 
 Snapshot 使用独立、带版本的 `CanonicalSnapshot` schema，不直接序列化内部 store 或状态库结构。内部 normalized state 可以重构而不改变持久化格式。
 
+P3 起 `CanonicalSnapshot` 使用 0.2 wire schema：实体以显式数组持久化，result 使用带 `runId` 的记录，stream 只保存 `runId + lastSequence` checkpoint。`activityByToolCallId`、`seenEventIds`、blocked 状态和 diagnostic 都是可重建或临时运行数据，不进入持久化格式。导入 checkpoint 后，`lastSequence` 同时成为 compaction watermark；后续事件必须从下一 canonical sequence 继续。
+
+本地只能从不存在 sequence gap 的状态创建权威 snapshot。恢复旧 Alpha 数据时可以只读导入 0.1 snapshot，但所有新 snapshot 都写为 0.2。
+
 ### 5.3 Cursor、sequence 与 revision
 
 三种概念必须分离：
@@ -285,6 +289,8 @@ Snapshot 使用独立、带版本的 `CanonicalSnapshot` schema，不直接序�
 - transport cursor：用于重连和向服务端请求续传；
 - canonical sequence：用于诊断某个明确作用域内的事件顺序；
 - entity/snapshot revision：用于判断 patch 或 snapshot 的基线。
+
+Task collection 使用每 Run 单调 revision。`tasks.snapshot` 必须高于当前 revision，并权威替换该 Run 的完整任务集合；`task.patched` 必须满足 `baseRevision === currentRevision` 且 `revision === currentRevision + 1`。revision 不连续、跨 Run ID 冲突、缺失 parent 或 parent cycle 都产生 diagnostic，且不得部分修改任务集合。
 
 Adapter 必须声明 sequence 作用域。Timestamp 只用于展示，不作为事件排序依据。首版对无法安全应用的 gap/out-of-order 事件应暂停对应 stream、产生 typed diagnostic 并请求 replay/snapshot；不得静默按到达顺序修补权威状态。没有顺序保证的协议只能声明降级能力。
 

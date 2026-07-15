@@ -1,5 +1,5 @@
 import { createInitialState, replayEvents } from '@agentic-chat/core'
-import { checkAdapterConformance } from '@agentic-chat/testkit'
+import { checkAdapterConformance, checkSnapshotReplayConformance } from '@agentic-chat/testkit'
 import { describe, expect, it } from 'vitest'
 import { adaptAgUiEvents, agUiCapabilities, type AgUiEvent } from './index.js'
 
@@ -34,6 +34,7 @@ describe('AG-UI adapter fixture', () => {
     expect(result.state.activities['step:1:research']?.status).toBe('completed')
     expect(result.state.streams['run-ag']?.lastSequence).toBe(fixture.length)
     expect(adapted.events[0]?.timestamp).toBe('1970-01-01T00:00:00.000Z')
+    expect(checkSnapshotReplayConformance(adapted.events, 6).issues).toEqual([])
   })
 
   it('keeps a tool running after TOOL_CALL_END until its result arrives', () => {
@@ -74,6 +75,37 @@ describe('AG-UI adapter fixture', () => {
     expect(adapted.diagnostics).toEqual([
       { code: 'unsupported_event', message: 'STATE_SNAPSHOT is preserved but not yet modeled', sourceIndex: 1 },
     ])
+  })
+
+  it('maps only revisioned tasks in the explicit agenticChat state namespace', () => {
+    const adapted = adaptAgUiEvents([
+      { type: 'RUN_STARTED', threadId: 'thread-ag', runId: 'run-ag' },
+      { type: 'STATE_SNAPSHOT', snapshot: { agenticChat: { tasks: { revision: 1, items: [
+        { id: 'research', title: 'Research', status: 'in_progress' },
+      ] } } } },
+      { type: 'STATE_DELTA', delta: [{ op: 'replace', path: '/agenticChat/tasks', value: { revision: 2, items: [
+        { id: 'research', title: 'Research', status: 'completed' },
+        { id: 'write', parentId: 'research', title: 'Write', status: 'in_progress' },
+      ] } }] },
+      { type: 'RUN_FINISHED', threadId: 'thread-ag', runId: 'run-ag' },
+    ])
+    const result = checkAdapterConformance(adapted.events, { sequence: agUiCapabilities.sequence })
+    expect(adapted.diagnostics).toEqual([])
+    expect(result.issues).toEqual([])
+    expect(result.state.taskRevisionByRunId['run-ag']).toBe(2)
+    expect(result.state.tasks.research?.status).toBe('completed')
+    expect(result.state.tasks.write?.parentId).toBe('research')
+    expect(checkSnapshotReplayConformance(adapted.events, 2).issues).toEqual([])
+  })
+
+  it('does not trust malformed data inside the agenticChat namespace', () => {
+    const adapted = adaptAgUiEvents([
+      { type: 'RUN_STARTED', threadId: 'thread-ag', runId: 'run-ag' },
+      { type: 'STATE_SNAPSHOT', snapshot: { agenticChat: { tasks: { revision: 1, items: [{ id: 'task', title: 'Unsafe', status: 'invented' }] } } } },
+      { type: 'RUN_FINISHED', threadId: 'thread-ag', runId: 'run-ag' },
+    ])
+    expect(adapted.events[1]?.type).toBe('source.observed')
+    expect(adapted.diagnostics[0]?.code).toBe('invalid_event')
   })
 
   it('diagnoses malformed lifecycle events without breaking canonical sequence', () => {

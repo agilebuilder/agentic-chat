@@ -1,4 +1,4 @@
-import type { CanonicalEvent } from '@agentic-chat/core'
+import { createInitialState, createSnapshot, replayEvents, type CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it, vi } from 'vitest'
 import { createRuntime } from './index.js'
 
@@ -61,6 +61,14 @@ describe('runtime external store contract', () => {
     expect(runtime.getState().streams['run-1']).toBeUndefined()
     runtime.dispatch({ schemaVersion: '0.1', eventId: 'start-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:01Z', data: {} })
     expect(runtime.getState().runs['run-1']?.status).toBe('running')
+  })
+
+  it('initializes from the public canonical snapshot schema', () => {
+    const state = replayEvents([started], createInitialState())
+    const runtime = createRuntime({ initialSnapshot: createSnapshot(state, 4) })
+    expect(runtime.getState().runs['run-1']?.status).toBe('running')
+    expect(runtime.getState().streams['run-1']).toMatchObject({ lastSequence: 1, compactedThroughSequence: 1 })
+    expect(() => createRuntime({ initialState: state, initialSnapshot: createSnapshot(state, 4) })).toThrow('either initialState or initialSnapshot')
   })
 
   it('compacts replay metadata and notifies subscribers once', () => {
