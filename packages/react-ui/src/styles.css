@@ -28,11 +28,12 @@
 .ac-root pre { overflow: auto; max-height: 280px; padding: 10px; background: var(--ac-surface); border-radius: 8px; font: 12px/1.45 ui-monospace, monospace; }
 .ac-composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--ac-border); }
 .ac-composer textarea { flex: 1; resize: vertical; border: 1px solid var(--ac-border); border-radius: 8px; padding: 8px; font: inherit; }
-.ac-composer button, .ac-cancel, .ac-retry { border: 0; border-radius: 8px; padding: 8px 14px; background: var(--ac-accent); color: #fff; cursor: pointer; }
-.ac-composer textarea:focus-visible, .ac-composer button:focus-visible, .ac-cancel:focus-visible, .ac-retry:focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
-.ac-composer button:disabled, .ac-cancel:disabled, .ac-retry:disabled { cursor: default; opacity: .55; }
+.ac-composer button, .ac-cancel, .ac-retry, .ac-resume { border: 0; border-radius: 8px; padding: 8px 14px; background: var(--ac-accent); color: #fff; cursor: pointer; }
+.ac-composer textarea:focus-visible, .ac-composer button:focus-visible, .ac-cancel:focus-visible, .ac-retry:focus-visible, .ac-resume:focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
+.ac-composer button:disabled, .ac-cancel:disabled, .ac-retry:disabled, .ac-resume:disabled { cursor: default; opacity: .55; }
 .ac-cancel { margin: 0 16px 12px; background: #b42318; }
 .ac-retry { margin: 0 16px 12px; }
+.ac-resume { margin: 0 16px 12px; }
 .ac-connection { color: #92400e; background: #fffbeb; }
 .ac-artifact, .ac-message { display: grid; gap: 6px; margin: 12px 16px; padding: 12px; border: 1px solid var(--ac-border); border-radius: 8px; }
 .ac-artifact span, .ac-artifact code { color: var(--ac-muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -64,11 +65,28 @@
 .ac-artifact-panel .ac-artifact { margin: 8px 0 0; }
 .ac-interventions { display: grid; gap: 8px; margin: 12px 16px; }
 .ac-intervention { padding: 12px; border: 1px solid #f59e0b; border-radius: 8px; background: color-mix(in srgb, #f59e0b 8%, var(--ac-bg)); }
-.ac-intervention p { margin-top: 0; }
-.ac-intervention > div { display: flex; gap: 8px; }
-.ac-intervention input { min-width: 0; flex: 1; padding: 7px; border: 1px solid var(--ac-border); border-radius: 6px; }
+.ac-intervention[data-state="resolved"] { border-color: #16a34a; background: color-mix(in srgb, #16a34a 7%, var(--ac-bg)); }
+.ac-intervention[data-state="expired"] { border-color: var(--ac-border); background: var(--ac-surface); color: var(--ac-muted); }
+.ac-intervention header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ac-intervention header span { flex: none; padding: 2px 7px; border-radius: 999px; color: var(--ac-muted); background: var(--ac-surface); font-size: 12px; }
+.ac-intervention p { margin: 7px 0; }
+.ac-intervention > small { display: block; margin: 7px 0; color: var(--ac-muted); }
+.ac-intervention-actions { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; }
+.ac-intervention input:not([type="radio"]):not([type="checkbox"]), .ac-intervention textarea, .ac-intervention select { min-width: 0; padding: 7px; color: inherit; background: var(--ac-bg); border: 1px solid var(--ac-border); border-radius: 6px; font: inherit; }
+.ac-intervention-actions textarea { min-height: 72px; flex: 1; resize: vertical; }
 .ac-intervention button, .ac-notice button { padding: 7px 11px; color: #fff; background: var(--ac-accent); border: 0; border-radius: 6px; cursor: pointer; }
+.ac-intervention button:disabled { cursor: default; opacity: .55; }
 .ac-intervention .ac-secondary { color: inherit; background: transparent; border: 1px solid var(--ac-border); }
+.ac-intervention fieldset { display: grid; gap: 7px; margin: 10px 0; padding: 0; border: 0; }
+.ac-intervention legend { margin-bottom: 3px; font-weight: 600; }
+.ac-choice { display: flex; align-items: flex-start; gap: 8px; padding: 7px; border: 1px solid var(--ac-border); border-radius: 6px; cursor: pointer; }
+.ac-choice > span { display: grid; }
+.ac-choice small { color: var(--ac-muted); }
+.ac-intervention-fields { display: grid; gap: 9px; margin: 10px 0; }
+.ac-intervention-fields > label:not(.ac-checkbox) { display: grid; gap: 4px; }
+.ac-checkbox { display: flex; align-items: center; gap: 7px; }
+.ac-intervention-feedback { color: var(--ac-muted); }
+.ac-intervention-error { color: var(--ac-danger); }
 .ac-notice { display: grid; gap: 4px; margin: 10px 16px; padding: 10px 12px; border-left: 3px solid var(--ac-accent); background: var(--ac-surface); }
 .ac-notice[data-tone="error"] { border-color: #dc2626; }
 .ac-notice[data-tone="warning"] { border-color: #f59e0b; }
@@ -80,7 +98,7 @@
 .ac-spinner { width: 14px; height: 14px; border: 2px solid var(--ac-border); border-top-color: var(--ac-accent); border-radius: 50%; animation: ac-spin .8s linear infinite; }
 .ac-attach { display: grid; place-items: center; width: 36px; cursor: pointer; border: 1px solid var(--ac-border); border-radius: 8px; }
 .ac-attach input, .ac-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.ac-root button:focus-visible, .ac-root input:focus-visible, .ac-root summary:focus-visible, .ac-attach:focus-within { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
+.ac-root button:focus-visible, .ac-root input:focus-visible, .ac-root textarea:focus-visible, .ac-root select:focus-visible, .ac-root summary:focus-visible, .ac-attach:focus-within { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
 @keyframes ac-spin { to { transform: rotate(360deg); } }
 @media (prefers-color-scheme: dark) { .ac-root[data-theme="system"] { --ac-bg: #111827; --ac-surface: #1f2937; --ac-fg: #f3f4f6; --ac-muted: #9ca3af; --ac-border: #374151; --ac-accent: #60a5fa; } }
 @media (max-width: 640px) { .ac-composer { align-items: stretch; flex-wrap: wrap; } .ac-composer textarea { flex-basis: calc(100% - 52px); } .ac-composer > button[type="submit"] { margin-left: auto; } .ac-artifact, .ac-message, .ac-panel, .ac-interventions { margin-left: 10px; margin-right: 10px; } }

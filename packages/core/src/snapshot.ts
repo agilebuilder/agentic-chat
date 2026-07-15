@@ -13,10 +13,13 @@ export interface CanonicalSnapshotEntities {
   activities: Activity[]
   toolCalls: ToolCall[]
   results: Array<{ runId: string; content: RenderableContent }>
-  interventions: Intervention[]
+  interventions: SnapshotIntervention[]
   tasks: AgentTask[]
   artifacts: Artifact[]
 }
+
+/** Schema 0.2 existed before requestedAt was added; imports accept the old omission. */
+export type SnapshotIntervention = Omit<Intervention, 'requestedAt'> & { requestedAt?: string }
 
 /** Stable persistence schema. It intentionally does not expose AgenticState. */
 export interface CanonicalSnapshot {
@@ -31,8 +34,9 @@ export interface CanonicalSnapshot {
 export interface LegacyCanonicalSnapshot {
   schemaVersion: '0.1'
   revision: number
-  state: Omit<AgenticState, 'runs' | 'taskRevisionByRunId' | 'rootActivityIdsByRunId' | 'childActivityIdsByParentId'> & {
+  state: Omit<AgenticState, 'runs' | 'interventions' | 'taskRevisionByRunId' | 'rootActivityIdsByRunId' | 'childActivityIdsByParentId'> & {
     runs: Record<string, Omit<AgentRun, 'attempt'> & { attempt?: number }>
+    interventions: Record<string, SnapshotIntervention>
     taskRevisionByRunId?: Record<string, number>
     rootActivityIdsByRunId?: Record<string, string[]>
     childActivityIdsByParentId?: Record<string, string[]>
@@ -44,6 +48,8 @@ const values = <T>(table: Record<string, T>): T[] => structuredClone(Object.valu
 const assertRevision = (revision: number, label: string): void => {
   if (!Number.isSafeInteger(revision) || revision < 0) throw new Error(`${label} must be a non-negative safe integer`)
 }
+
+const validOptions = (options: readonly { value: string; label: string }[] | undefined, minimum: number): boolean => !!options && options.length >= minimum && new Set(options.map((option) => option.value)).size === options.length && options.every((option) => !!option.value.trim() && !!option.label.trim())
 
 export function createSnapshot(state: AgenticState, revision: number): CanonicalSnapshot {
   assertRevision(revision, 'Snapshot revision')
@@ -117,7 +123,7 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   }
   state.activities = tableFrom(snapshot.entities.activities, 'activities')
   state.toolCalls = tableFrom(snapshot.entities.toolCalls, 'toolCalls')
-  state.interventions = tableFrom(snapshot.entities.interventions, 'interventions')
+  state.interventions = tableFrom(snapshot.entities.interventions, 'interventions') as Record<string, Intervention>
   state.tasks = tableFrom(snapshot.entities.tasks, 'tasks')
   state.artifacts = tableFrom(snapshot.entities.artifacts, 'artifacts')
   for (const { runId, content } of snapshot.entities.results) {
@@ -191,6 +197,15 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   }
   for (const intervention of Object.values(state.interventions)) {
     if (!state.runs[intervention.runId]) throw new Error(`Intervention ${intervention.id} references missing run ${intervention.runId}`)
+    if (!intervention.requestedAt) intervention.requestedAt = state.runs[intervention.runId]!.createdAt
+    if (!Number.isFinite(Date.parse(intervention.requestedAt))) throw new Error(`Intervention ${intervention.id} has invalid requestedAt`)
+    if (intervention.activityId && (!state.activities[intervention.activityId] || state.activities[intervention.activityId]?.runId !== intervention.runId)) throw new Error(`Intervention ${intervention.id} references invalid activity ${intervention.activityId}`)
+    if (!['pending', 'resolved', 'expired'].includes(intervention.status)) throw new Error(`Intervention ${intervention.id} has invalid status ${intervention.status}`)
+    if (intervention.kind === 'choice' && !validOptions(intervention.options, 2)) throw new Error(`Choice intervention ${intervention.id} has invalid options`)
+    if (intervention.kind === 'form' && (!intervention.fields?.length || new Set(intervention.fields.map((field) => field.name)).size !== intervention.fields.length || intervention.fields.some((field) => !field.name.trim() || !field.label.trim() || (field.type === 'select' && !validOptions(field.options, 1))))) throw new Error(`Form intervention ${intervention.id} has invalid fields`)
+    if (intervention.expiresAt && !Number.isFinite(Date.parse(intervention.expiresAt))) throw new Error(`Intervention ${intervention.id} has invalid expiresAt`)
+    if (intervention.status === 'resolved' && !intervention.resolvedAt) intervention.resolvedAt = intervention.requestedAt
+    if (intervention.status === 'expired' && !intervention.expiredAt) intervention.expiredAt = intervention.expiresAt ?? intervention.requestedAt
   }
   for (const artifact of Object.values(state.artifacts)) {
     if (!state.runs[artifact.runId]) throw new Error(`Artifact ${artifact.id} references missing run ${artifact.runId}`)

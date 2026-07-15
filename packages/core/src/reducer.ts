@@ -5,6 +5,11 @@ const terminalStatuses = new Set<RunStatus>(['completed', 'failed', 'cancelled']
 const maxRetainedDiagnostics = 200
 export const MAX_RETAINED_EVENT_IDS_PER_RUN = 256
 
+function validInterventionOptions(options: readonly { value: string; label: string }[] | undefined, minimum: number): boolean {
+  if (!options || options.length < minimum) return false
+  return new Set(options.map((option) => option.value)).size === options.length && options.every((option) => option.value.trim() && option.label.trim())
+}
+
 function indexActivity(state: AgenticState, runId: string, activityId: string, parentActivityId?: string): void {
   if (parentActivityId) {
     state.childActivityIdsByParentId = {
@@ -194,18 +199,44 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     next.results[event.runId] = { kind: 'text', value: `${current?.kind === 'text' && typeof current.value === 'string' ? current.value : ''}${event.data.delta}` }
   } else if (event.type === 'intervention.requested') {
     if (next.interventions[event.data.interventionId]) return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} already exists`)
+    if (!event.data.interventionId.trim() || !event.data.prompt.trim()) return diagnostic(next, event, 'invalid_transition', 'Intervention ID and prompt must not be empty')
+    const activity = event.data.activityId ? next.activities[event.data.activityId] : undefined
+    if (event.data.activityId && (!activity || activity.runId !== event.runId)) return diagnostic(next, event, 'invalid_transition', `Intervention activity ${event.data.activityId} is not in this run`)
+    if (event.data.expiresAt && (!Number.isFinite(Date.parse(event.data.expiresAt)) || Date.parse(event.data.expiresAt) <= Date.parse(event.timestamp))) return diagnostic(next, event, 'invalid_transition', 'Intervention expiry must be after its request timestamp')
+    if (event.data.kind !== 'choice' && event.data.options) return diagnostic(next, event, 'invalid_transition', 'Only choice interventions may define options')
+    if (event.data.kind !== 'form' && event.data.fields) return diagnostic(next, event, 'invalid_transition', 'Only form interventions may define fields')
+    if (event.data.kind === 'choice') {
+      if (!validInterventionOptions(event.data.options, 2)) return diagnostic(next, event, 'invalid_transition', 'Choice intervention requires at least two unique non-empty options')
+    }
+    if (event.data.kind === 'form') {
+      const fields = event.data.fields ?? []
+      const names = new Set(fields.map((field) => field.name))
+      const invalidSelect = fields.some((field) => field.type === 'select' && !validInterventionOptions(field.options, 1))
+      if (fields.length === 0 || names.size !== fields.length || fields.some((field) => !field.name.trim() || !field.label.trim()) || invalidSelect) return diagnostic(next, event, 'invalid_transition', 'Form intervention requires valid uniquely named fields')
+    }
     next.interventions[event.data.interventionId] = {
       id: event.data.interventionId,
       runId: event.runId,
       kind: event.data.kind,
       status: 'pending',
       prompt: event.data.prompt,
+      requestedAt: event.timestamp,
       ...(event.data.activityId ? { activityId: event.data.activityId } : {}),
+      ...(event.data.description ? { description: event.data.description } : {}),
+      ...(event.data.risk ? { risk: event.data.risk } : {}),
+      ...(event.data.impact ? { impact: event.data.impact } : {}),
+      ...(event.data.options ? { options: structuredClone(event.data.options) } : {}),
+      ...(event.data.fields ? { fields: structuredClone(event.data.fields) } : {}),
+      ...(event.data.expiresAt ? { expiresAt: event.data.expiresAt } : {}),
     }
   } else if (event.type === 'intervention.resolved') {
     const intervention = next.interventions[event.data.interventionId]
     if (!intervention || intervention.runId !== event.runId || intervention.status !== 'pending') return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} is not pending in this run`)
-    next.interventions[intervention.id] = { ...intervention, status: 'resolved', response: event.data.response }
+    next.interventions[intervention.id] = { ...intervention, status: 'resolved', response: event.data.response, resolvedAt: event.timestamp }
+  } else if (event.type === 'intervention.expired') {
+    const intervention = next.interventions[event.data.interventionId]
+    if (!intervention || intervention.runId !== event.runId || intervention.status !== 'pending') return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} is not pending in this run`)
+    next.interventions[intervention.id] = { ...intervention, status: 'expired', expiredAt: event.timestamp }
   } else if (event.type === 'tasks.snapshot') {
     next.tasks = { ...state.tasks }
     next.taskRevisionByRunId = { ...state.taskRevisionByRunId }

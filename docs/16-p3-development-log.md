@@ -12,7 +12,7 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 | P3.1 | 公共 adapter conformance 基线与 AG-UI 稳定生命周期映射 | 已完成 |
 | P3.2 | Canonical snapshot + delta、Task patch/revision 与等价 replay | 已完成 |
 | P3.3 | 并行/父子 Activity、subagent 展示、retry/attempt | 已完成 |
-| P3.4 | Human-in-the-loop 状态机、幂等响应与恢复 | 待开始 |
+| P3.4 | Human-in-the-loop 状态机、幂等响应与恢复 | 已完成 |
 | P3.5 | Artifact version/provenance/preview 安全策略 | 待开始 |
 | P3.6 | 第三个生产风格 adapter 与 runtime 切换示例 | 待开始 |
 | P3.7 | Inspector、诊断、Beta 无障碍/性能/安全门 | 待开始 |
@@ -60,8 +60,21 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 - AG-UI `STATE_SNAPSHOT/STATE_DELTA` 是来源共享状态，不等同于 `CanonicalSnapshot`；当前只转换 experimental Task 命名空间；
 - reasoning 不展示为最终回答或普通 status，等待跨来源语义验证；
 - 编码 Agent fixture 仍是行为样本，不计作第三个生产 adapter；
-- P3 的 snapshot/replay、并行/父子 Activity 和 retry/attempt 验收项已完成；其余路线图项目仍需真实 adapter、UI 和恢复验收共同完成。
+- P3 的 snapshot/replay、并行/父子 Activity、retry/attempt 和 HITL 恢复/幂等验收项已完成；其余路线图项目仍需真实 adapter、UI 和恢复验收共同完成。
+
+## P3.4 完成内容
+
+- Intervention request 增加 description、risk、impact、expiresAt、choice options 与结构化 form fields；新增显式 `intervention.expired`；
+- canonical 状态持久化 pending/resolved/expired 及请求/完成时间；submitting 明确为临时 Runtime command state；
+- reducer 校验关联 Activity、过期时间、choice 唯一选项、form 唯一字段，并拒绝重复 resolved/expired；
+- 0.2 snapshot 可恢复全部 HITL 状态，并迁移 P2 期间缺少 requestedAt 的记录；
+- Runtime 新增 `respondToIntervention`，相同 idempotency key 共享同一 Promise，失败可重提，成功后在权威事件到达前禁止不同响应覆盖；
+- 默认 UI 支持 confirm、approve/reject、choice、text 和多字段 form，展示风险/影响/有效期、submitting、权限错误及 resolved/expired 只读历史；
+- paused Run 增加 capability-gated resume 操作；Run status 与 Intervention status 仍保持显式分离；
+- 新增 `checkInterventionConformance`、HITL Storybook、snapshot/reducer/runtime/UI 与键盘/axe 测试；
+- ADR-0008 记录 durable 状态、幂等边界、失败重提和安全责任。
+- core 未压缩 dist 基线约 96.3KB，预算由 96KB 调整为 108KB；react-ui 因完整结构化控件由约 70.6KB 增至 88.2KB，预算由 72KB 调整为 100KB。两者继续由 CI 阻止无界增长。
 
 ## 下一片入口
 
-P3.4 将完善 Human-in-the-loop：pending/submitting/resolved/expired、幂等 response、刷新恢复、失败重提和权限错误。Run status 与 Intervention status 继续遵循 ADR-0002 的显式分离。
+P3.5 将完善 Artifact version/provenance、preview registry、生成/失败/过期状态，以及 iframe/外链预览安全策略。

@@ -88,15 +88,35 @@ describe('React default UI', () => {
 
   it('renders pending interventions and the extensible composer', () => {
     const state = createInitialState()
-    state.interventions.approval = { id: 'approval', runId: 'run-1', kind: 'approval', status: 'pending', prompt: '允许执行查询吗？' }
+    state.interventions.approval = { id: 'approval', runId: 'run-1', kind: 'approval', status: 'pending', prompt: '允许执行查询吗？', requestedAt: '2026-07-13T00:00:00Z' }
     const runtime = createRuntime({ initialState: state })
     const html = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><InterventionPanel runId="run-1" onRespond={async () => {}} /><Composer running runningStrategy="queue" leadingSlot={<span>前置</span>} trailingSlot={<span>后置</span>} onAttach={() => {}} onSend={async () => {}} /></AgenticChatProvider>)
 
     expect(html).toContain('允许执行查询吗？')
-    expect(html).toContain('确认')
+    expect(html).toContain('批准')
     expect(html).toContain('添加附件')
     expect(html).toContain('前置')
     expect(html).toContain('后置')
+  })
+
+  it('renders structured HITL controls and restored terminal states', () => {
+    const state = createInitialState()
+    state.interventions.choice = { id: 'choice', runId: 'run-1', kind: 'choice', status: 'pending', prompt: '选择格式', requestedAt: '2026-07-13T00:00:00Z', options: [{ value: 'csv', label: 'CSV' }, { value: 'pdf', label: 'PDF' }] }
+    state.interventions.form = { id: 'form', runId: 'run-1', kind: 'form', status: 'pending', prompt: '填写信息', requestedAt: '2026-07-13T00:00:01Z', fields: [{ name: 'title', label: '标题', type: 'text', required: true }, { name: 'notify', label: '通知', type: 'checkbox' }] }
+    state.interventions.resolved = { id: 'resolved', runId: 'run-1', kind: 'confirm', status: 'resolved', prompt: '已确认', requestedAt: '2026-07-13T00:00:02Z', resolvedAt: '2026-07-13T00:00:03Z', response: true }
+    state.interventions.expired = { id: 'expired', runId: 'run-1', kind: 'text', status: 'expired', prompt: '已超时', requestedAt: '2026-07-13T00:00:04Z', expiredAt: '2026-07-13T00:00:05Z' }
+    const runtime = createRuntime({ initialState: state })
+    const html = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><InterventionPanel runId="run-1" onRespond={async () => {}} /></AgenticChatProvider>)
+    expect(html).toContain('CSV')
+    expect(html).toContain('提交选择')
+    expect(html).toContain('标题 *')
+    expect(html).toContain('提交表单')
+    expect(html).toContain('data-state="resolved"')
+    expect(html).toContain('已处理')
+    expect(html).toContain('data-state="expired"')
+    expect(html).toContain('已过期')
+    const readOnly = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><InterventionPanel runId="run-1" /></AgenticChatProvider>)
+    expect(readOnly).toContain('当前 Runtime 不支持响应此请求')
   })
 
   it('groups parallel subagents, nests children, and shows attempt history', () => {
@@ -131,5 +151,16 @@ describe('React default UI', () => {
     ].forEach((item) => runtime.dispatch(item as CanonicalEvent))
     const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="attempt-1" onSend={async () => {}} onRetry={async () => {}} />)
     expect(html).toContain('>重试</button>')
+  })
+
+  it('gates resume action to paused Runs and runtime capability', () => {
+    const runtime = createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'snapshot-and-delta', cancel: false, resume: true, retry: false, intervention: false, artifacts: false },
+      commands: { resumeRun: async () => undefined },
+    })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'resume-1', type: 'run.started', threadId: 'thread-1', runId: 'paused-run', sequence: 1, timestamp: '2026-07-15T09:00:00Z', data: {} })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'resume-2', type: 'run.status.changed', threadId: 'thread-1', runId: 'paused-run', sequence: 2, timestamp: '2026-07-15T09:00:01Z', data: { status: 'paused' } })
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="paused-run" onSend={async () => {}} onResume={async () => {}} />)
+    expect(html).toContain('>恢复运行</button>')
   })
 })

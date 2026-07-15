@@ -20,6 +20,7 @@ export interface AgenticRuntime {
   compactRun(runId: string): void
   setConnection(connection: ConnectionState): void
   executeCommand<T>(key: string, operation: () => Promise<T>): Promise<T>
+  respondToIntervention(interventionId: string, value: unknown, idempotencyKey: string): Promise<void>
   reportDiagnostic(diagnostic: RuntimeDiagnostic): void
   subscribe(listener: () => void): () => void
 }
@@ -43,6 +44,22 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
   const commands = options.commands ?? {}
   assertCommandCapabilities(capabilities, commands)
   const listeners = new Set<() => void>()
+  const interventionSubmissions = new Map<string, { idempotencyKey: string; responseFingerprint: string; promise: Promise<void> }>()
+  const notify = () => listeners.forEach((listener) => listener())
+  const executeCommand = async <T>(key: string, operation: () => Promise<T>): Promise<T> => {
+    snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'pending' } } }
+    notify()
+    try {
+      const result = await operation()
+      snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'succeeded' } } }
+      notify()
+      return result
+    } catch (error) {
+      snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'failed', error: error instanceof Error ? error.message : String(error) } } }
+      notify()
+      throw error
+    }
+  }
   return {
     capabilities,
     commands,
@@ -52,7 +69,13 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       const next = reduceEvent(snapshot.state, event)
       if (next === snapshot.state) return
       snapshot = { ...snapshot, state: next }
-      listeners.forEach((listener) => listener())
+      if ((event.type === 'intervention.resolved' || event.type === 'intervention.expired') && next.interventions[event.data.interventionId]?.status !== 'pending') {
+        interventionSubmissions.delete(event.data.interventionId)
+        const commandKey = `respond:${event.data.interventionId}`
+        const { [commandKey]: _, ...commandsWithoutIntervention } = snapshot.commands
+        snapshot = { ...snapshot, commands: commandsWithoutIntervention }
+      }
+      notify()
     },
     hydrateRun(run) {
       const existing = snapshot.state.runs[run.id]
@@ -64,39 +87,58 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       const predecessor = run.retryOfRunId ? snapshot.state.runs[run.retryOfRunId] : undefined
       if (predecessor && (predecessor.threadId !== run.threadId || !['completed', 'failed', 'cancelled'].includes(predecessor.status) || run.attempt !== predecessor.attempt + 1)) throw new Error(`Retry predecessor ${run.retryOfRunId} is incompatible with attempt ${run.attempt}`)
       snapshot = { ...snapshot, state: { ...snapshot.state, runs: { ...snapshot.state.runs, [run.id]: run } } }
-      listeners.forEach((listener) => listener())
+      notify()
     },
     compactRun(runId) {
       const state = compactRunStream(snapshot.state, runId)
       if (state === snapshot.state) return
       snapshot = { ...snapshot, state }
-      listeners.forEach((listener) => listener())
+      notify()
     },
     setConnection(connection) {
       snapshot = { ...snapshot, connection }
-      listeners.forEach((listener) => listener())
+      notify()
     },
-    async executeCommand(key, operation) {
-      snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'pending' } } }
-      listeners.forEach((listener) => listener())
-      try {
-        const result = await operation()
-        snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'succeeded' } } }
-        listeners.forEach((listener) => listener())
-        return result
-      } catch (error) {
-        snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'failed', error: error instanceof Error ? error.message : String(error) } } }
-        listeners.forEach((listener) => listener())
-        throw error
+    executeCommand,
+    respondToIntervention(interventionId, value, idempotencyKey) {
+      if (!idempotencyKey.trim()) return Promise.reject(new Error('Intervention response requires an idempotency key'))
+      const intervention = snapshot.state.interventions[interventionId]
+      if (!intervention || intervention.status !== 'pending') return Promise.reject(new Error(`Intervention ${interventionId} is not pending`))
+      if (!capabilities.intervention || !commands.respond) return Promise.reject(new Error('Intervention responses are not supported by this runtime'))
+      const existing = interventionSubmissions.get(interventionId)
+      const responseFingerprint = fingerprint(value)
+      if (existing) {
+        if (existing.idempotencyKey !== idempotencyKey) return Promise.reject(new Error(`Intervention ${interventionId} already has a submitted response`))
+        if (existing.responseFingerprint !== responseFingerprint) return Promise.reject(new Error(`Idempotency key for ${interventionId} is already bound to a different response`))
+        return existing.promise
       }
+      const operation = executeCommand(`respond:${interventionId}`, () => commands.respond!(interventionId, value, idempotencyKey))
+      let tracked: Promise<void>
+      tracked = operation.catch((error: unknown) => {
+        if (interventionSubmissions.get(interventionId)?.promise === tracked) interventionSubmissions.delete(interventionId)
+        throw error
+      }).finally(() => {
+        if (snapshot.state.interventions[interventionId]?.status === 'pending') return
+        interventionSubmissions.delete(interventionId)
+        const commandKey = `respond:${interventionId}`
+        const { [commandKey]: _, ...commandsWithoutIntervention } = snapshot.commands
+        snapshot = { ...snapshot, commands: commandsWithoutIntervention }
+        notify()
+      })
+      interventionSubmissions.set(interventionId, { idempotencyKey, responseFingerprint, promise: tracked })
+      return tracked
     },
     reportDiagnostic(diagnostic) {
       snapshot = { ...snapshot, diagnostics: [...snapshot.diagnostics, diagnostic].slice(-200) }
-      listeners.forEach((listener) => listener())
+      notify()
     },
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
   }
+}
+
+function fingerprint(value: unknown): string {
+  try { return JSON.stringify(value) ?? String(value) } catch { return Object.prototype.toString.call(value) }
 }

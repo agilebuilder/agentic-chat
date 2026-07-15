@@ -1,5 +1,5 @@
 import type { AgenticState, CanonicalEvent, RunStatus } from '@agentic-chat/core'
-import { createInitialState, createSnapshot, importSnapshot, replayEvents } from '@agentic-chat/core'
+import { createInitialState, createSnapshot, importSnapshot, reduceEvent, replayEvents } from '@agentic-chat/core'
 
 export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-order' | 'unordered'
 
@@ -15,6 +15,35 @@ export interface ConformanceResult {
 
 export interface SnapshotReplayConformanceResult extends ConformanceResult {
   fullReplayState: AgenticState
+}
+
+/** Checks durable HITL replay and the single-resolution invariant. */
+export function checkInterventionConformance(events: readonly CanonicalEvent[]): ConformanceResult {
+  const issues: string[] = []
+  const requestedIndex = events.findIndex((event) => event.type === 'intervention.requested')
+  if (requestedIndex < 0) return { state: replayEvents(events, createInitialState()), issues: ['fixture must request an intervention'] }
+  const snapshotResult = checkSnapshotReplayConformance(events, requestedIndex + 1)
+  issues.push(...snapshotResult.issues)
+  const state = snapshotResult.state
+  const interventionEvents = events.filter((event) => event.type === 'intervention.requested')
+  for (const requested of interventionEvents) {
+    if (requested.type !== 'intervention.requested') continue
+    const intervention = state.interventions[requested.data.interventionId]
+    if (!intervention) issues.push(`intervention ${requested.data.interventionId} is missing after replay`)
+    else if (intervention.status === 'pending') issues.push(`intervention ${requested.data.interventionId} did not reach resolved or expired`)
+  }
+  let terminalIndex = -1
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (events[index]?.type === 'intervention.resolved' || events[index]?.type === 'intervention.expired') { terminalIndex = index; break }
+  }
+  const terminal = events[terminalIndex]
+  if (terminal && (terminal.type === 'intervention.resolved' || terminal.type === 'intervention.expired')) {
+    const terminalState = replayEvents(events.slice(0, terminalIndex + 1), createInitialState())
+    const duplicate = { ...terminal, eventId: `${terminal.eventId}:duplicate`, sequence: terminal.sequence + 1 }
+    const duplicateState = reduceEvent(terminalState, duplicate)
+    if (duplicateState.diagnostics.length !== terminalState.diagnostics.length + 1) issues.push('duplicate intervention terminal event was not rejected')
+  }
+  return { state, issues: [...new Set(issues)] }
 }
 
 /** Checks a retry chain represented as distinct, independently sequenced Run streams. */

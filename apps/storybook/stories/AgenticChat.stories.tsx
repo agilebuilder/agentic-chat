@@ -71,7 +71,7 @@ function createWorkspaceRuntime() {
   state.tasks['task-2'] = { id: 'task-2', runId, title: 'Confirm publication', status: 'blocked' }
   state.taskRevisionByRunId[runId] = 1
   state.artifacts['artifact-1'] = { id: 'artifact-1', runId, name: 'Revenue report.csv', kind: 'text/csv', status: 'available', uri: 'https://example.invalid/revenue.csv' }
-  state.interventions['approval-1'] = { id: 'approval-1', runId, kind: 'approval', status: 'pending', prompt: 'Publish the generated report?' }
+  state.interventions['approval-1'] = { id: 'approval-1', runId, kind: 'approval', status: 'pending', prompt: 'Publish the generated report?', requestedAt: '2026-07-14T02:00:01Z' }
   return createRuntime({ initialState: state })
 }
 
@@ -103,6 +103,29 @@ function createAdvancedRuntime() {
 
 const advancedRuntime = createAdvancedRuntime()
 
+function createHitlRuntime() {
+  const runtime = createRuntime({
+    capabilities: { send: false, sequence: 'strict-per-run', replay: 'snapshot-and-delta', cancel: false, resume: false, retry: false, intervention: true, artifacts: false },
+    commands: { respond: async (interventionId) => { if (interventionId === 'form-permission') throw new Error('没有权限执行此操作') } },
+  })
+  const dispatch = (sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data']) => runtime.dispatch({
+    schemaVersion: '0.1', eventId: `hitl:${sequence}`, type, threadId, runId: 'hitl-run', sequence,
+    timestamp: `2026-07-15T09:00:${String(sequence).padStart(2, '0')}Z`, data, source: 'storybook',
+  } as CanonicalEvent)
+  dispatch(1, 'run.started', {})
+  dispatch(2, 'run.status.changed', { status: 'awaiting_input' })
+  dispatch(3, 'intervention.requested', { interventionId: 'approval-release', kind: 'approval', prompt: '允许发布报告吗？', description: '报告将发布到团队工作区。', risk: '团队成员将能够查看报告内容。', impact: '发布后会通知 12 位成员。', expiresAt: '2026-07-15T10:00:00Z' })
+  dispatch(4, 'intervention.requested', { interventionId: 'choice-format', kind: 'choice', prompt: '选择导出格式', options: [{ value: 'csv', label: 'CSV', description: '适合进一步分析' }, { value: 'pdf', label: 'PDF', description: '适合直接分享' }] })
+  dispatch(5, 'intervention.requested', { interventionId: 'form-permission', kind: 'form', prompt: '补充发布信息', fields: [{ name: 'title', label: '标题', type: 'text', required: true }, { name: 'audience', label: '可见范围', type: 'select', required: true, options: [{ value: 'team', label: '团队' }, { value: 'private', label: '仅自己' }] }, { name: 'notify', label: '通知成员', type: 'checkbox' }] })
+  dispatch(6, 'intervention.requested', { interventionId: 'confirm-restored', kind: 'confirm', prompt: '已恢复的确认记录' })
+  dispatch(7, 'intervention.resolved', { interventionId: 'confirm-restored', response: true })
+  dispatch(8, 'intervention.requested', { interventionId: 'text-expired', kind: 'text', prompt: '已过期的补充说明', expiresAt: '2026-07-15T10:00:00Z' })
+  dispatch(9, 'intervention.expired', { interventionId: 'text-expired' })
+  return runtime
+}
+
+const hitlRuntime = createHitlRuntime()
+
 function WorkspaceState() {
   return <main className="story-surface"><div className="story-frame"><AgenticChat
     runtime={workspaceRuntime}
@@ -128,3 +151,4 @@ export const Failed: Story = { render: () => <State status="failed" /> }
 export const Cancelled: Story = { render: () => <State status="cancelled" /> }
 export const WorkspacePrimitives: Story = { render: () => <WorkspaceState /> }
 export const ParallelSubagents: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={advancedRuntime} runId="advanced-run-2" onSend={async () => undefined} onRetry={async () => undefined} /></div></main> }
+export const HumanInTheLoop: Story = { render: () => <main className="story-surface"><div className="story-frame"><AgenticChat runtime={hitlRuntime} runId="hitl-run" onSend={async () => undefined} /></div></main> }

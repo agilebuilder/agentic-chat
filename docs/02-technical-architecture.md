@@ -316,7 +316,7 @@ interface AgentCommands {
   send(input: UserInput): Promise<CommandReceipt>
   cancelRun(runId: string): Promise<void>
   retryRun(runId: string): Promise<CommandReceipt>
-  respond(interventionId: string, value: unknown): Promise<void>
+  respond(interventionId: string, value: unknown, idempotencyKey: string): Promise<void>
   loadHistory(cursor?: string): Promise<void>
   resumeRun?(runId: string): Promise<void>
 }
@@ -329,6 +329,8 @@ Adapter 通过 capability declaration 表明支持项。UI 根据 capability 显
 职责边界如下：Adapter 负责协议语义转换，Transport/client 负责连接和 API 调用，Runtime 负责命令 pending/receipt/diagnostic，Host 负责鉴权和业务权限。Adapter 不应逐步吸收路由、凭据、文件存储或业务状态。
 
 前端 idempotency key 只提供关联手段；只有后端持久化并执行去重时，才能宣称端到端幂等。ChatBI CreateRun 已在 P2 按 ADR-0004 实现持久化去重、请求指纹冲突检测和并发创建保护。
+
+Intervention 的 durable 状态为 `pending | resolved | expired`；`submitting` 是 Runtime command state，不写入 snapshot。Runtime 对同一个 Intervention 的相同 idempotency key 合并并发/重复提交，成功后在 canonical resolved/expired 事件到达前阻止不同响应覆盖；命令失败会保留错误并允许使用同一 key 重提。后端仍必须持久化该 key 才能提供跨刷新、跨进程的端到端 exactly-once 效果。Run 的 `awaiting_input/paused/running` 继续由显式 Run 事件驱动，详见 ADR-0002 与 ADR-0008。
 
 ## 7. Renderer 扩展体系
 

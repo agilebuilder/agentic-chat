@@ -83,3 +83,42 @@ describe('runtime external store contract', () => {
     expect(listener).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('HITL command idempotency', () => {
+  const createHitlRuntime = (respond: (interventionId: string, value: unknown, idempotencyKey: string) => Promise<void>) => {
+    const runtime = createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'snapshot-and-delta', cancel: false, resume: false, retry: false, intervention: true, artifacts: false },
+      commands: { respond },
+    })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'h1', type: 'run.started', threadId: 't1', runId: 'r1', sequence: 1, timestamp: '2026-07-15T09:00:00Z', data: {} })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'h2', type: 'intervention.requested', threadId: 't1', runId: 'r1', sequence: 2, timestamp: '2026-07-15T09:00:01Z', data: { interventionId: 'i1', kind: 'approval', prompt: 'Publish?' } })
+    return runtime
+  }
+
+  it('coalesces duplicate responses and allows retry after failure', async () => {
+    let calls = 0
+    let reject = true
+    const runtime = createHitlRuntime(async () => { calls += 1; if (reject) throw new Error('forbidden') })
+
+    const first = runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    const duplicate = runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    expect(first).toBe(duplicate)
+    await expect(runtime.respondToIntervention('i1', 'rejected', 'stable-key')).rejects.toThrow('different response')
+    await expect(first).rejects.toThrow('forbidden')
+    expect(calls).toBe(1)
+    expect(runtime.getSnapshot().commands['respond:i1']).toMatchObject({ status: 'failed', error: 'forbidden' })
+
+    reject = false
+    await runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    await runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    expect(calls).toBe(2)
+    await expect(runtime.respondToIntervention('i1', 'rejected', 'different-key')).rejects.toThrow('already has a submitted response')
+  })
+
+  it('rejects a response after canonical resolution', async () => {
+    const runtime = createHitlRuntime(async () => undefined)
+    await runtime.respondToIntervention('i1', 'approved', 'key')
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'h3', type: 'intervention.resolved', threadId: 't1', runId: 'r1', sequence: 3, timestamp: '2026-07-15T09:00:02Z', data: { interventionId: 'i1', response: 'approved' } })
+    await expect(runtime.respondToIntervention('i1', 'approved', 'key')).rejects.toThrow('not pending')
+  })
+})

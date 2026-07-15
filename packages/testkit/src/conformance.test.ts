@@ -1,6 +1,6 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it } from 'vitest'
-import { checkAdapterConformance, checkRetryAttemptConformance, checkSnapshotReplayConformance } from './conformance.js'
+import { checkAdapterConformance, checkInterventionConformance, checkRetryAttemptConformance, checkSnapshotReplayConformance } from './conformance.js'
 
 const event = (sequence: number, type: CanonicalEvent['type']): CanonicalEvent => {
   const base = {
@@ -57,5 +57,17 @@ describe('adapter conformance suite', () => {
       { ...event(2, 'run.completed'), eventId: 'retry-2', runId: 'run-2' } as CanonicalEvent,
     ]
     expect(checkRetryAttemptConformance([first, second]).issues).toEqual([])
+  })
+
+  it('checks intervention recovery and duplicate resolution rejection', () => {
+    const events: CanonicalEvent[] = [
+      event(1, 'run.started'),
+      { ...event(2, 'run.completed'), type: 'run.status.changed', data: { status: 'awaiting_input' } } as CanonicalEvent,
+      { ...event(3, 'run.completed'), type: 'intervention.requested', data: { interventionId: 'approval', kind: 'approval', prompt: 'Publish?' } } as CanonicalEvent,
+      { ...event(4, 'run.completed'), type: 'intervention.resolved', data: { interventionId: 'approval', response: 'approved' } } as CanonicalEvent,
+      { ...event(5, 'run.completed'), type: 'run.status.changed', data: { status: 'running' } } as CanonicalEvent,
+      { ...event(6, 'run.completed') },
+    ]
+    expect(checkInterventionConformance(events).issues).toEqual([])
   })
 })

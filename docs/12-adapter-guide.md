@@ -115,6 +115,21 @@ if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
 
 该检查先 replay 前缀并创建 0.2 `CanonicalSnapshot`，再导入 snapshot、replay 后缀，最后与完整事件 replay 的持久化结果比较。切点不能位于 sequence gap 后。
 
+## Human-in-the-loop
+
+支持 HITL 的 adapter 必须同时声明 `intervention: true` 并实现 `commands.respond(interventionId, value, idempotencyKey)`。请求使用 `intervention.requested`，最终结果由后端事件明确写成 `intervention.resolved` 或 `intervention.expired`；command 成功不能由 adapter 自行伪造 resolved，Run 恢复也必须另外发送 `run.status.changed(running)`。
+
+`choice` 至少包含两个 value 唯一的 options；`form` 使用名称唯一的 fields，支持 text、textarea、number、select 和 checkbox。风险、影响、描述和 expiresAt 都是可选展示元数据。到达 expiresAt 本身不会令 reducer 读取本地时钟自动过期，权威后端必须发出 `intervention.expired`，保证 replay 确定性。
+
+```ts
+import { checkInterventionConformance } from '@agentic-chat/testkit'
+
+const result = checkInterventionConformance(events)
+if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
+```
+
+该检查验证 snapshot 中的 pending 恢复、后续 resolved/expired replay，以及同一个 Intervention 不能完成两次。Host/后端负责鉴权、权限错误和 idempotency key 的持久化；不要把前端 disabled 状态当作安全边界。
+
 ### AG-UI Task state 约定（experimental）
 
 AG-UI 的共享 state 不会默认导入 canonical store。当前只识别显式命名空间中的完整任务集合：

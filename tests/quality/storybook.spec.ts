@@ -9,6 +9,7 @@ const storyIds = {
   cancelled: 'p2-quality-agenticchat-states--cancelled',
   workspace: 'p2-quality-agenticchat-states--workspace-primitives',
   subagents: 'p2-quality-agenticchat-states--parallel-subagents',
+  hitl: 'p2-quality-agenticchat-states--human-in-the-loop',
 } as const
 
 async function openStory(page: Page, id: string) {
@@ -67,4 +68,43 @@ test('primary intervention action is first in the workspace tab order', async ({
   await page.locator('body').focus()
   await page.keyboard.press('Tab')
   await expect(page.locator('.ac-intervention button').first()).toBeFocused()
+})
+
+test('HITL choice is keyboard operable and approval cannot be submitted twice', async ({ page }) => {
+  await openStory(page, storyIds.hitl)
+  const approval = page.locator('.ac-intervention').filter({ hasText: '允许发布报告吗？' })
+  const approve = approval.getByRole('button', { name: '批准' })
+  await approve.click()
+  await expect(approve).toBeDisabled()
+  await expect(approval).toContainText('响应已接收')
+
+  const choice = page.locator('.ac-intervention').filter({ hasText: '选择导出格式' })
+  const pdf = choice.getByRole('radio', { name: /PDF/ })
+  await pdf.focus()
+  await page.keyboard.press('Space')
+  await expect(pdf).toBeChecked()
+  await choice.getByRole('button', { name: '提交选择' }).click()
+  await expect(choice).toContainText('响应已接收')
+})
+
+test('HITL form reports permission errors and keeps retry available', async ({ page }) => {
+  await openStory(page, storyIds.hitl)
+  const form = page.locator('.ac-intervention').filter({ hasText: '补充发布信息' })
+  await form.getByLabel('标题 *').fill('季度报告')
+  await form.getByLabel('可见范围 *').selectOption('team')
+  await form.getByRole('button', { name: '提交表单' }).click()
+  await expect(form.getByRole('alert')).toContainText('没有权限执行此操作')
+  await expect(form.getByRole('button', { name: '提交表单' })).toBeEnabled()
+})
+
+test('HITL restored terminal records remain visible but inert', async ({ page }) => {
+  await openStory(page, storyIds.hitl)
+  const resolved = page.locator('.ac-intervention[data-state="resolved"]')
+  const expired = page.locator('.ac-intervention[data-state="expired"]')
+  await expect(resolved).toContainText('已恢复的确认记录')
+  await expect(resolved).toContainText('已处理')
+  await expect(expired).toContainText('已过期的补充说明')
+  await expect(expired).toContainText('已过期')
+  await expect(resolved.getByRole('button')).toHaveCount(0)
+  await expect(expired.getByRole('button')).toHaveCount(0)
 })

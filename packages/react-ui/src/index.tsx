@@ -1,6 +1,7 @@
+import type { Intervention, InterventionField } from '@agentic-chat/core'
 import { selectRunAttemptHistory, type AgenticRuntime, type RuntimeSnapshot } from '@agentic-chat/runtime'
 import { AgenticChatProvider, useActivity, useArtifact, useChildActivityIds, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRootActivityIds, useRun, useRunResult, useRuntimeSelector, useToolCall, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
-import { Component, useId, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import { Component, useId, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { Markdown } from './markdown.js'
 
 export { Markdown, type MarkdownProps } from './markdown.js'
@@ -145,20 +146,80 @@ export function ArtifactPanel({ runId }: { runId: string }) {
   return <section className="ac-panel ac-artifact-panel" aria-labelledby={`artifacts-${runId}`}><h3 id={`artifacts-${runId}`}>产物</h3>{artifactIds.map((id) => <ArtifactCard key={id} artifactId={id} mode="compact" />)}</section>
 }
 
-export function InterventionPanel({ runId, onRespond }: { runId: string; onRespond(interventionId: string, response: unknown): Promise<void> }) {
+export type InterventionResponder = (interventionId: string, response: unknown, idempotencyKey: string) => Promise<void>
+
+export function InterventionPanel({ runId, onRespond }: { runId: string; onRespond?: InterventionResponder }) {
   const interventionMap = useRuntimeSelector((snapshot) => snapshot.state.interventions)
-  const interventions = Object.values(interventionMap).filter((item) => item.runId === runId && item.status === 'pending')
+  const interventions = Object.values(interventionMap).filter((item) => item.runId === runId).sort((left, right) => left.requestedAt.localeCompare(right.requestedAt) || left.id.localeCompare(right.id))
   if (interventions.length === 0) return null
-  return <section className="ac-interventions" aria-label="需要操作">{interventions.map((item) => <InterventionCard key={item.id} intervention={item} onRespond={onRespond} />)}</section>
+  return <section className="ac-interventions" aria-label="人工介入">{interventions.map((item) => <InterventionCard key={item.id} intervention={item} {...(onRespond ? { onRespond } : {})} />)}</section>
 }
 
-function InterventionCard({ intervention, onRespond }: { intervention: { id: string; kind: string; prompt: string }; onRespond(id: string, response: unknown): Promise<void> }) {
+let fallbackIdempotencySequence = 0
+const nextIdempotencyKey = (interventionId: string): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  fallbackIdempotencySequence += 1
+  return `${interventionId}:${Date.now()}:${fallbackIdempotencySequence}`
+}
+
+function InterventionCard({ intervention, onRespond }: { intervention: Intervention; onRespond?: InterventionResponder }) {
   const [value, setValue] = useState('')
-  const [pending, setPending] = useState(false)
+  const [formValues, setFormValues] = useState<Record<string, string | boolean>>({})
+  const [localPending, setLocalPending] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [localError, setLocalError] = useState<string>()
+  const submission = useRef<{ fingerprint: string; key: string } | undefined>(undefined)
+  const command = useCommandState(`respond:${intervention.id}`)
   const inputId = useId()
-  const respond = async (response: unknown) => { setPending(true); try { await onRespond(intervention.id, response) } finally { setPending(false) } }
-  if (intervention.kind === 'confirm' || intervention.kind === 'approval') return <article className="ac-intervention"><p>{intervention.prompt}</p><div><button type="button" disabled={pending} onClick={() => void respond(true)}>确认</button><button type="button" className="ac-secondary" disabled={pending} onClick={() => void respond(false)}>拒绝</button></div></article>
-  return <form className="ac-intervention" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void respond(value.trim()) }}><label htmlFor={inputId}>{intervention.prompt}</label><div><input id={inputId} value={value} onChange={(event) => setValue(event.target.value)} disabled={pending} /><button type="submit" disabled={pending || !value.trim()}>提交</button></div></form>
+  const pending = localPending || command.status === 'pending'
+  const accepted = submitted || command.status === 'succeeded'
+  const error = localError ?? (command.status === 'failed' ? command.error : undefined)
+  const respond = async (response: unknown) => {
+    if (!onRespond) return
+    const fingerprint = stringify(response)
+    if (!submission.current || submission.current.fingerprint !== fingerprint) submission.current = { fingerprint, key: nextIdempotencyKey(intervention.id) }
+    setLocalPending(true)
+    setLocalError(undefined)
+    try {
+      await onRespond(intervention.id, response, submission.current.key)
+      setSubmitted(true)
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setLocalPending(false)
+    }
+  }
+  const meta = <><header><strong>{intervention.prompt}</strong><span>{intervention.status === 'pending' ? '等待操作' : intervention.status === 'resolved' ? '已处理' : '已过期'}</span></header>{intervention.description ? <p>{intervention.description}</p> : null}{intervention.risk ? <p><b>风险：</b>{intervention.risk}</p> : null}{intervention.impact ? <p><b>影响：</b>{intervention.impact}</p> : null}{intervention.expiresAt ? <small>有效期至 {intervention.expiresAt}</small> : null}</>
+  if (intervention.status !== 'pending') return <article className="ac-intervention" data-state={intervention.status}>{meta}</article>
+  if (!onRespond) return <article className="ac-intervention" data-state="pending">{meta}<p className="ac-intervention-feedback" role="status">当前 Runtime 不支持响应此请求。</p></article>
+  const feedback = <>{pending ? <p className="ac-intervention-feedback" role="status">正在提交…</p> : null}{accepted ? <p className="ac-intervention-feedback" role="status">响应已接收，等待 Agent 更新状态。</p> : null}{error ? <p className="ac-intervention-error" role="alert">提交失败：{error}，您可以重试。</p> : null}</>
+  if (intervention.kind === 'confirm' || intervention.kind === 'approval') {
+    const positive = intervention.kind === 'approval' ? 'approved' : true
+    const negative = intervention.kind === 'approval' ? 'rejected' : false
+    return <article className="ac-intervention" data-state="pending">{meta}<div className="ac-intervention-actions"><button type="button" disabled={pending || accepted} onClick={() => void respond(positive)}>{intervention.kind === 'approval' ? '批准' : '确认'}</button><button type="button" className="ac-secondary" disabled={pending || accepted} onClick={() => void respond(negative)}>{intervention.kind === 'approval' ? '拒绝' : '取消'}</button></div>{feedback}</article>
+  }
+  if (intervention.kind === 'choice') return <form className="ac-intervention" data-state="pending" onSubmit={(event) => { event.preventDefault(); if (value) void respond(value) }}>{meta}<fieldset disabled={pending || accepted}><legend>请选择一项</legend>{intervention.options?.map((option) => <label className="ac-choice" key={option.value}><input type="radio" name={inputId} value={option.value} checked={value === option.value} onChange={(event) => setValue(event.target.value)} /><span><strong>{option.label}</strong>{option.description ? <small>{option.description}</small> : null}</span></label>)}</fieldset><button type="submit" disabled={pending || accepted || !value}>提交选择</button>{feedback}</form>
+  if (intervention.kind === 'form') {
+    const missingRequired = intervention.fields?.some((field) => field.required && !formValues[field.name]) ?? true
+    const submitForm = () => {
+      const response = Object.fromEntries((intervention.fields ?? []).map((field) => [field.name, normalizeFieldValue(field, formValues[field.name])]))
+      void respond(response)
+    }
+    return <form className="ac-intervention" data-state="pending" onSubmit={(event) => { event.preventDefault(); if (!missingRequired) submitForm() }}>{meta}<div className="ac-intervention-fields">{intervention.fields?.map((field) => <InterventionFieldInput key={field.name} field={field} value={formValues[field.name]} disabled={pending || accepted} onChange={(next) => setFormValues((current) => ({ ...current, [field.name]: next }))} />)}</div><button type="submit" disabled={pending || accepted || missingRequired}>提交表单</button>{feedback}</form>
+  }
+  return <form className="ac-intervention" data-state="pending" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void respond(value.trim()) }}>{meta}<label htmlFor={inputId}>您的回复</label><div className="ac-intervention-actions"><textarea id={inputId} value={value} onChange={(event) => setValue(event.target.value)} disabled={pending || accepted} /><button type="submit" disabled={pending || accepted || !value.trim()}>提交</button></div>{feedback}</form>
+}
+
+function normalizeFieldValue(field: InterventionField, value: string | boolean | undefined): string | number | boolean {
+  if (field.type === 'checkbox') return value === true
+  if (field.type === 'number') return Number(value)
+  return typeof value === 'string' ? value : ''
+}
+
+function InterventionFieldInput({ field, value, disabled, onChange }: { field: InterventionField; value: string | boolean | undefined; disabled: boolean; onChange(value: string | boolean): void }) {
+  const id = useId()
+  if (field.type === 'checkbox') return <label className="ac-checkbox" htmlFor={id}><input id={id} type="checkbox" checked={value === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />{field.label}</label>
+  return <label htmlFor={id}><span>{field.label}{field.required ? ' *' : ''}</span>{field.type === 'textarea' ? <textarea id={id} value={typeof value === 'string' ? value : ''} placeholder={field.placeholder} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)} /> : field.type === 'select' ? <select id={id} value={typeof value === 'string' ? value : ''} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)}><option value="">请选择</option>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input id={id} type={field.type} value={typeof value === 'string' ? value : ''} placeholder={field.placeholder} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)} />}</label>
 }
 
 export type NoticeTone = 'info' | 'warning' | 'error' | 'success'
@@ -217,24 +278,33 @@ export interface AgenticChatProps {
   onSend(message: string): Promise<void>
   onCancel?(runId: string): Promise<void>
   onRetry?(runId: string): Promise<void>
-  onRespond?(interventionId: string, response: unknown): Promise<void>
+  onResume?(runId: string): Promise<void>
+  onRespond?: InterventionResponder
   theme?: 'system' | 'light' | 'dark'
   className?: string
 }
 
-export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onRespond, theme = 'system', className }: AgenticChatProps) {
+export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onResume, onRespond, theme = 'system', className }: AgenticChatProps) {
   const rootClassName = ['ac-root', className].filter(Boolean).join(' ')
-  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onRespond ? { onRespond } : {})} /></AgenticChatProvider>
+  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onResume ? { onResume } : {})} {...(onRespond ? { onRespond } : {})} /></AgenticChatProvider>
 }
 
-function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRetry, onRespond }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
+function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRetry, onResume, onRespond }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
   const run = useRun(runId ?? '')
   const running = !!run && ['queued', 'running', 'awaiting_input', 'paused'].includes(run.status)
+  const responder = onRespond ?? (runtime.capabilities.intervention ? runtime.respondToIntervention : undefined)
   return <div className={rootClassName} data-theme={theme}>
     <ConnectionNotice />
-    {runId ? <><RunStatus runId={runId} /><RunAttemptHistory runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} />{onRespond ? <InterventionPanel runId={runId} onRespond={onRespond} /> : null}{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}{onRetry && runtime.capabilities.retry ? <RetryButton runId={runId} onRetry={onRetry} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
+    {runId ? <><RunStatus runId={runId} /><RunAttemptHistory runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} /><InterventionPanel runId={runId} {...(responder ? { onRespond: responder } : {})} />{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}{onRetry && runtime.capabilities.retry ? <RetryButton runId={runId} onRetry={onRetry} /> : null}{onResume && runtime.capabilities.resume ? <ResumeButton runId={runId} onResume={onResume} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
     <Composer onSend={onSend} running={running} />
   </div>
+}
+
+function ResumeButton({ runId, onResume }: { runId: string; onResume(runId: string): Promise<void> }) {
+  const run = useRun(runId)
+  const state = useCommandState(`resume:${runId}`)
+  if (!run || run.status !== 'paused') return null
+  return <button className="ac-resume" type="button" disabled={state.status === 'pending'} onClick={() => void onResume(runId)}>{state.status === 'pending' ? '正在恢复…' : '恢复运行'}</button>
 }
 
 function RetryButton({ runId, onRetry }: { runId: string; onRetry(runId: string): Promise<void> }) {

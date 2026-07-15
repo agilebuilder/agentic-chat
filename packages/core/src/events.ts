@@ -1,4 +1,4 @@
-import type { AgentError, TaskStatus } from './model.js'
+import type { AgentError, InterventionField, InterventionOption, TaskStatus } from './model.js'
 
 export interface CanonicalTaskValue {
   id: string
@@ -37,8 +37,9 @@ export type CanonicalEvent =
   | EventEnvelope<'tool.failed', { toolCallId: string; error: AgentError }>
   | EventEnvelope<'result.available', { kind: string; result: unknown }>
   | EventEnvelope<'result.delta', { delta: string }>
-  | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string }>
+  | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string; description?: string; risk?: string; impact?: string; options?: InterventionOption[]; fields?: InterventionField[]; expiresAt?: string }>
   | EventEnvelope<'intervention.resolved', { interventionId: string; response: unknown }>
+  | EventEnvelope<'intervention.expired', { interventionId: string }>
   | EventEnvelope<'tasks.snapshot', { revision: number; tasks: CanonicalTaskValue[] }>
   | EventEnvelope<'task.patched', { baseRevision: number; revision: number; taskId: string; patch: CanonicalTaskPatch }>
   | EventEnvelope<'source.observed', { sourceType: string }>

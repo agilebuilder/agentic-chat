@@ -106,7 +106,31 @@ export interface Intervention {
   kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'
   status: 'pending' | 'resolved' | 'expired'
   prompt: string
+  description?: string
+  risk?: string
+  impact?: string
+  options?: InterventionOption[]
+  fields?: InterventionField[]
+  requestedAt: string
+  expiresAt?: string
+  resolvedAt?: string
+  expiredAt?: string
   response?: unknown
+}
+
+export interface InterventionOption {
+  value: string
+  label: string
+  description?: string
+}
+
+export interface InterventionField {
+  name: string
+  label: string
+  type: 'text' | 'textarea' | 'number' | 'select' | 'checkbox'
+  required?: boolean
+  placeholder?: string
+  options?: InterventionOption[]
 }
 
 export interface AgentTask {
