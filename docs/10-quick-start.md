@@ -21,7 +21,8 @@ pnpm add @agentic-chat/core@0.1.0-alpha.1 @agentic-chat/runtime@0.1.0-alpha.1 @a
 - Node.js 20.19+ 或 22.12+；
 - pnpm 10；
 - React 18 或 19；
-- 可访问 npm registry 的网络和现代浏览器。
+- 可访问 npm registry 的网络；
+- P2 Alpha 正式验证范围为 Chromium 内核：CI 使用 Playwright Chromium，独立验收使用 Microsoft Edge。Firefox 和 Safari 尚未进入 P2 兼容矩阵，不代表已知不兼容，但当前不作正式支持承诺。
 
 检查环境：
 

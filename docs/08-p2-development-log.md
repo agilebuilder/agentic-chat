@@ -1,7 +1,7 @@
 # P2 可复用 Alpha 开发记录
 
 > 开始日期：2026-07-13  
-> 当前状态：P2.5–P2.8 已完成；P2.9 npm Alpha 已发布，等待独立 Quick Start 与 ChatBI 最终集成验收。
+> 当前状态：P2 已完成；npm Alpha、独立 Quick Start 与 ChatBI 最终集成验收均已通过。
 
 ## 已确认决策
 
@@ -14,7 +14,7 @@
 
 ## 第一片已完成
 
-- 本地 `origin` 已指向 GitHub 仓库，未进行推送；
+- 本地 Git remote 已指向 GitHub 仓库，当时尚未进行推送；
 - 公共包 exports 从 `src` 切换到 `dist`；
 - 输出 ESM、类型声明、声明映射和 source map；
 - 发布包排除测试文件并包含 MIT License；
@@ -95,16 +95,16 @@
 - `pnpm verify` 全绿：13 个测试文件 54 项测试、12 个 workspace 构建、Node harness、6 个 tarball 隔离安装；
 - ChatBI 消费端 13 项前端测试与 production build 回归通过。
 
-## P2.9 下一步
+## P2.9 完成情况
 
 1. [x] GitHub 鉴权、首次推送和 Actions CI：Node 20、Node 22、浏览器质量三个 job 已完成首次全绿验证；
 2. [x] npm Alpha 已发布并完成公共 registry 空目录安装、ESM 导入、React SSR 与 CSS export 验证：`core/runtime/react/react-ui` 为 `0.1.0-alpha.1`，`adapter-chatbi/testkit` 为 `0.1.0-alpha.0`；
-3. [ ] 由未参与核心开发的人员依据 `docs/14-quick-start-acceptance.md` 在 30 分钟内完成独立接入，并记录阻塞与耗时；
-4. [ ] 使用发布后的 npm 版本替换 ChatBI 当前本地 `file:` 依赖，执行最终集成验收。
+3. [x] 未参与核心开发的 React 开发者依据 `docs/14-quick-start-acceptance.md` 在 25 分钟内完成独立接入；Edge 下 Tab 焦点、Ctrl+Enter 第二次发送、第二个 Run 终态、主题、390px 与 production build 均确认通过；
+4. [x] ChatBI 已将本地 `file:` 依赖替换为发布后的精确 npm 版本；lockfile 只包含 registry tarball 与 integrity，完整单测、构建、后端门禁和浏览器集成验收通过。
 
 ## 发布前外部依赖
 
-- 安排 Quick Start 独立验收人员。
+- 已全部解除。
 
 ## P2.9 发布记录（2026-07-15）
 
@@ -114,3 +114,13 @@
 - npm 发布后使用全新目录和全新 npm cache 安装六个确切版本，依赖审计为 0 vulnerabilities；
 - 六个 ESM 入口、`AgenticChat` React SSR 和 `@agentic-chat/react-ui/styles.css` export 验证通过；
 - npm 首次建包同时初始化了 `alpha` 与 `latest`；独立验收固定使用确切版本，不依赖移动的 dist-tag。
+
+## P2.9 最终集成记录（2026-07-15）
+
+- ChatBI `frontend/package.json` 固定使用 `adapter-chatbi@0.1.0-alpha.0`、`react@0.1.0-alpha.1` 和 `react-ui@0.1.0-alpha.1`；
+- 删除仅用于发布前本地联调的 `agentic-chat:build`，重新生成 npm lockfile；`core/runtime/react/react-ui/adapter-chatbi` 全部解析到公共 registry tarball，不含 `file:`、`workspace:`、`link:` 或 `../../chat_ui`；
+- ChatBI 全仓门禁通过：Ruff、96 项后端测试、14 项前端测试、production build、通用内核审计、凭据审计与全部评测基线；
+- ChatBI Playwright 最终整轮 10 项通过、2 项按项目条件跳过；覆盖桌面/移动键盘焦点、上传查询、图表/表格、刷新恢复、取消、非法上传和 PostgreSQL 领域结果；
+- 修复键盘 E2E 在后端冷启动时未等待 API readiness 的时序缺口；
+- 修复 ChatBI 遗留 `api.createRun` 入口，要求调用方提供可复用幂等键并发送 `Idempotency-Key`，新增 header 回归测试；
+- P2 正式验收结论见 `docs/15-p2-acceptance-report.md`。

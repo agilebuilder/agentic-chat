@@ -275,7 +275,7 @@ P1 UI 默认只实现线性 Activity 时间线。父子、并行、Task、通用
 - [x] 默认 Markdown 配置不执行 raw HTML；不使用 `dangerouslySetInnerHTML`，并限制链接 scheme；
 - [x] 1,000 activities benchmark 达到团队设定预算且无明显卡死；当前基线约 551ms，预算 4,000ms；
 - [x] 发布包无意外开发依赖，类型声明和 ESM 导入正常；
-- [ ] Quick Start 由一名未参与核心开发的人在 30 分钟内完成。
+- [x] Quick Start 由一名未参与核心开发的 React 开发者在 25 分钟内完成；精确 npm 版本、Edge 键盘操作、窄屏、主题与 production build 均通过复核。
 
 ### 5.5 退出条件
 
