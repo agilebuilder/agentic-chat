@@ -18,6 +18,20 @@ async function openStory(page: Page, id: string) {
   await expect(page.locator('.ac-root')).toBeVisible()
 }
 
+test('same default UI switches across three adapter runtimes', async ({ page }) => {
+  await page.goto('http://127.0.0.1:6008')
+  const source = page.getByLabel('事件源')
+  await page.getByLabel('间隔').selectOption('50')
+  for (const expected of ['ChatBI', 'AG-UI', 'AI SDK']) {
+    await source.selectOption({ label: expected })
+    await expect(page.getByTestId('active-adapter')).toHaveText(expected)
+    await page.getByRole('button', { name: '播放' }).click()
+    await expect(page.locator('.ac-run-status')).toContainText('已完成', { timeout: 15_000 })
+  }
+  const violations = await new AxeBuilder({ page }).include('main').analyze()
+  expect(violations.violations).toEqual([])
+})
+
 for (const [state, id] of Object.entries(storyIds)) {
   test(`${state} state has no automatically detectable accessibility violations`, async ({ page }) => {
     await openStory(page, id)

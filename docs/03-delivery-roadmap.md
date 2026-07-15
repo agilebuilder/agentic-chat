@@ -343,14 +343,14 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 
 ### 6.4 验收标准
 
-- [ ] 三个事件源通过同一 conformance suite；
-- [ ] 同一个默认 UI 无需 fork 核心包即可切换三个 runtime；
+- [x] 三个事件源通过同一 conformance suite；ChatBI、AG-UI 与 AI SDK UI Message Stream fixture 均验证生命周期、ToolCall、sequence 和 snapshot replay；
+- [x] 同一个默认 UI 无需 fork 核心包即可切换三个 runtime；Runtime Switcher 浏览器测试依次播放 ChatBI、AG-UI 与 AI SDK 至 completed；
 - [x] 并行 Activity 不被错误串行化，父子关系可理解；编码 Agent fixture、层级 selector 与可折叠 subagent 默认 UI 已验证两个并行 root 及其子级 ToolCall；
 - [x] intervention 在刷新后仍能恢复 pending/resolved/expired 状态；0.2 snapshot、迁移测试、默认只读历史卡片与 HITL Storybook 已覆盖；
 - [x] 重复提交 approval 不会执行两次；Runtime 按 Intervention + idempotency key 合并，成功后锁定响应、失败后允许重提，并有单元与浏览器测试；端到端保证仍要求 Host 后端持久化 key；
 - [x] retry 产生新的 attempt，历史 attempt 可追溯；retry 创建新 Run，保留 `retryOfRunId` 链，公共 conformance、selector、默认历史视图与 capability-gated retry 操作已覆盖；
 - [x] snapshot 后 replay 增量与纯 event replay 得到等价状态；0.2 wire snapshot 与公共 conformance helper 已在 ChatBI、AG-UI、编码 Agent 行为 fixture 的中间运行状态验证；
-- [ ] adapter 遇到未知事件可降级且有 diagnostic；
+- [x] adapter 遇到未知事件可降级且有 diagnostic；三种 Adapter 均将未知或未建模事件降级为无 payload 的 `source.observed`，并生成脱敏 diagnostic；
 - [x] artifact 来源、版本和状态清晰；不可变版本链、显式 provenance、完整生命周期、snapshot/conformance、双向导航和拒绝默认的懒加载 sandbox 预览已覆盖；
 - [ ] 完成无障碍、性能和安全 Beta 检查清单；
 - [ ] 公共 API 在整个 Beta 周期内除明确 experimental 部分外无重大重构需求。

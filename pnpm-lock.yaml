@@ -53,6 +53,15 @@ importers:
 
   apps/fixture-player:
     dependencies:
+      '@agentic-chat/adapter-ag-ui':
+        specifier: workspace:^
+        version: link:../../packages/adapter-ag-ui
+      '@agentic-chat/adapter-ai-sdk':
+        specifier: workspace:^
+        version: link:../../packages/adapter-ai-sdk
+      '@agentic-chat/adapter-chatbi':
+        specifier: workspace:^
+        version: link:../../packages/adapter-chatbi
       '@agentic-chat/core':
         specifier: workspace:^
         version: link:../../packages/core
@@ -188,6 +197,19 @@ importers:
         version: 5.9.3
 
   packages/adapter-ag-ui:
+    dependencies:
+      '@agentic-chat/core':
+        specifier: workspace:^
+        version: link:../core
+      '@agentic-chat/runtime':
+        specifier: workspace:^
+        version: link:../runtime
+    devDependencies:
+      '@agentic-chat/testkit':
+        specifier: workspace:^
+        version: link:../testkit
+
+  packages/adapter-ai-sdk:
     dependencies:
       '@agentic-chat/core':
         specifier: workspace:^

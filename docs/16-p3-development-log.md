@@ -14,7 +14,7 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 | P3.3 | 并行/父子 Activity、subagent 展示、retry/attempt | 已完成 |
 | P3.4 | Human-in-the-loop 状态机、幂等响应与恢复 | 已完成 |
 | P3.5 | Artifact version/provenance/preview 安全策略 | 已完成 |
-| P3.6 | 第三个生产风格 adapter 与 runtime 切换示例 | 待开始 |
+| P3.6 | 第三个生产风格 adapter 与 runtime 切换示例 | 已完成 |
 | P3.7 | Inspector、诊断、Beta 无障碍/性能/安全门 | 待开始 |
 
 ## P3.1 完成内容
@@ -88,6 +88,17 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 - ADR-0009 固化版本、状态、来源、过期和预览授权边界。
 - core 未压缩 dist 基线约 120.0KB，预算由 108KB 调整为 128KB；react-ui 基线约 98.0KB，预算由 100KB 调整为 112KB。两者保留约 8%–10% 余量，并继续由 CI 阻止无界增长。
 
+## P3.6 完成内容
+
+- 依据公开 UI Message Stream v1 新增公共 `@agentic-chat/adapter-ai-sdk`，保持零 AI SDK/React 运行时依赖；
+- 映射 Run、multi-step Activity、流式文本、流式/非流式 Tool input、Tool output/error、abort 和 stream error；
+- 新增 SSE data payload parser，并对越序、重复、终态后事件及未知 chunk 产生脱敏 diagnostic；
+- AI SDK fixture 通过公共 adapter conformance 与 snapshot replay；ChatBI、AG-UI 和 AI SDK 三种来源均使用同一 suite；
+- Fixture Player 升级为 Runtime Switcher，同一个 `AgenticChat` 可切换三个隔离 Runtime，并显示来源协议与 Adapter diagnostic；
+- 浏览器测试依次播放三种来源至 completed，并通过 axe 检查；
+- ADR-0010 记录选择 AI SDK 的原因，以及不把 OpenAI Responses function call 伪装成工具执行完成的语义边界；
+- `adapter-ai-sdk` 纳入包边界、尺寸预算、tarball 隔离安装与 Changesets 发布流程。
+
 ## 下一片入口
 
-P3.6 将实现第三个生产风格 adapter，并提供同一默认 UI 在多个 runtime 间切换的可运行示例。
+P3.7 将完成 Inspector、连接/解析诊断，以及 Beta 无障碍、性能和安全门。

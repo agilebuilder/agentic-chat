@@ -1,5 +1,6 @@
 {
   "adapter-chatbi": 49152,
+  "adapter-ai-sdk": 49152,
   "core": 131072,
   "react": 49152,
   "react-ui": 114688,

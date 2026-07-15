@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const temporaryRoot = resolve(root, '.tmp/package-smoke')
 const packsDirectory = resolve(temporaryRoot, 'packs')
 const consumerDirectory = resolve(temporaryRoot, 'consumer')
-const publicPackages = ['core', 'runtime', 'testkit', 'react', 'react-ui', 'adapter-chatbi']
+const publicPackages = ['core', 'runtime', 'testkit', 'react', 'react-ui', 'adapter-chatbi', 'adapter-ai-sdk']
 
 function run(command, args, cwd = root) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8', shell: process.platform === 'win32' })
@@ -52,12 +52,15 @@ import { createRuntime } from '@agentic-chat/runtime'
 import { chatBiSuccessfulRun } from '@agentic-chat/testkit'
 import { AgenticChatProvider } from '@agentic-chat/react'
 import { RunStatus } from '@agentic-chat/react-ui'
+import { adaptAiSdkUIMessageChunks } from '@agentic-chat/adapter-ai-sdk'
 
 const runtime = createRuntime()
 for (const event of chatBiSuccessfulRun) runtime.dispatch(event)
 const markup = renderToStaticMarkup(createElement(AgenticChatProvider, { runtime }, createElement(RunStatus, { runId: 'run-1' })))
 assert.match(markup, /role="status"/)
 assert.equal(runtime.getState().runs['run-1']?.status, 'completed')
+const aiSdk = adaptAiSdkUIMessageChunks([{ type: 'start' }, { type: 'finish' }], { threadId: 'packed-thread', runId: 'packed-run' })
+assert.deepEqual(aiSdk.events.map(event => event.type), ['run.started', 'run.completed'])
 console.log('Packed package ESM, types, dependencies, and SSR import smoke test passed.')
 `)
 

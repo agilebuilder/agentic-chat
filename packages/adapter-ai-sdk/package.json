@@ -1,0 +1,17 @@
+{
+  "name": "@agentic-chat/adapter-ai-sdk",
+  "version": "0.1.0-alpha.0",
+  "type": "module",
+  "description": "AI SDK UI Message Stream adapter for Agentic Chat UI.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/agilebuilder/agentic-chat.git", "directory": "packages/adapter-ai-sdk" },
+  "files": ["dist"],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./package.json": "./package.json" },
+  "publishConfig": { "access": "public" },
+  "dependencies": { "@agentic-chat/core": "workspace:^", "@agentic-chat/runtime": "workspace:^" },
+  "devDependencies": { "@agentic-chat/testkit": "workspace:^" },
+  "scripts": { "build": "tsc -b", "typecheck": "tsc -b --pretty false" }
+}

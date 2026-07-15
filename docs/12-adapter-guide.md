@@ -157,6 +157,29 @@ if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
 
 该检查拒绝仍在 generating 的交付结果，以及无效版本链和来源引用。来源协议只有一个含糊的 `artifact.created` 枚举、没有实际 producer 或 payload schema 时，应保持 capability 为 false，并安全降级未知事件。
 
+## AI SDK UI Message Stream v1
+
+`@agentic-chat/adapter-ai-sdk` 直接消费公开的 [UI Message Stream v1 协议](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) chunk，不要求安装 `ai` 或 `@ai-sdk/react`：
+
+```ts
+import { adaptAiSdkUIMessageChunks } from '@agentic-chat/adapter-ai-sdk'
+
+const adapted = adaptAiSdkUIMessageChunks(chunks, {
+  threadId: 'thread-1',
+  runId: 'run-1',
+  startedAt: new Date().toISOString(),
+})
+
+adapted.events.forEach(runtime.dispatch)
+adapted.diagnostics.forEach((item) => runtime.reportDiagnostic({
+  source: 'ai-sdk', code: item.code, message: item.message,
+}))
+```
+
+SSE transport 读取 `data:` 后可用 `parseAiSdkSseData` 解析 JSON payload；返回 `null` 表示 `[DONE]`，`undefined` 表示 comment/keep-alive。Host 必须校验响应头 `x-vercel-ai-ui-message-stream: v1`、处理 HTTP 状态、取消、超时与认证。
+
+该 Adapter 将 `tool-output-available/error` 视为权威执行结果。只有 function call 请求、没有宿主执行结果的来源不得伪造 `tool.completed`。当前 reasoning、file、source 和 `data-*` 默认安全降级；需要映射 Artifact 或可见 reasoning 时应先定义稳定来源契约。
+
 ### AG-UI Task state 约定（experimental）
 
 AG-UI 的共享 state 不会默认导入 canonical store。当前只识别显式命名空间中的完整任务集合：

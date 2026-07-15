@@ -11,6 +11,7 @@ The project is in Alpha development. The first production integration is ChatBI,
 - `@agentic-chat/react` — headless React provider and hooks.
 - `@agentic-chat/react-ui` — optional styled React components.
 - `@agentic-chat/adapter-chatbi` — ChatBI event and command adapter.
+- `@agentic-chat/adapter-ai-sdk` — AI SDK UI Message Stream v1 adapter with no AI SDK runtime dependency.
 - `@agentic-chat/testkit` — fixtures and adapter conformance helpers.
 
 ## Development

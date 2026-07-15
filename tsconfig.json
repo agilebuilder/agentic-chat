@@ -5,6 +5,7 @@
     { "path": "./packages/runtime" },
     { "path": "./packages/adapter-chatbi" },
     { "path": "./packages/adapter-ag-ui" },
+    { "path": "./packages/adapter-ai-sdk" },
     { "path": "./packages/testkit" },
     { "path": "./packages/react" },
     { "path": "./packages/react-ui" }
