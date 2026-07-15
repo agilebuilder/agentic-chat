@@ -13,6 +13,7 @@ Beta 集成需要定位 adapter 解析、sequence gap、连接重试和 reducer 
 - 连接历史只保留 status 与 attempt，不保留 error 文本。
 - event 与 connection 队列分别有 1–1000 的硬上限，默认 200/50；非法配置立即失败。
 - domain/runtime diagnostic 继续使用原有 200 条有界通道。Inspector 默认只显示 source/code；message 需要宿主显式设置 `revealDiagnosticMessages`。
+- payload-free 不等于匿名；envelope 的 `eventId`、`threadId`、`runId` 和 `source` 仍可能形成个人或业务标识。宿主负责使用非敏感 ID、限制开发面板访问并制定保留策略。
 - API 使用 `experimental*` 前缀，不纳入 Beta 稳定 API 承诺。Inspector 不进入 canonical snapshot，也不自动上传 telemetry。
 - Run、Activity 与 ToolCall 的已结束耗时由 canonical timestamp 派生，只用于展示，不参与事件排序。
 

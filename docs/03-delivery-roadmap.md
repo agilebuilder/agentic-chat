@@ -370,7 +370,7 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 
 将 Beta 打磨为外部团队可以审慎用于生产项目的稳定版本 D4。
 
-1.0 稳定范围优先覆盖 Run、Activity、ToolCall、Message、adapter/runtime contract。Task、Artifact、复杂 Intervention 或 subagent 若尚未经过足够真实集成，可以保留在 beta/experimental 入口，不为追求表面完整而冻结不成熟语义。
+最初规划允许 Task、Artifact、复杂 Intervention 或 subagent 在真实集成不足时保留于 beta/experimental 入口；P3 公共 API 评审确认它们已经从公开包根入口导出，因此现有根导出从 Beta 起一并受兼容性基线保护。P4 可以新增明确的 experimental 子入口，但不能把现有公开类型无迁移说明地移出或破坏。
 
 ### 7.2 工作内容
 

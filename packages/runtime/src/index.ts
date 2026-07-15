@@ -52,7 +52,7 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
   const commands = options.commands ?? {}
   assertCommandCapabilities(capabilities, commands)
   const listeners = new Set<() => void>()
-  const interventionSubmissions = new Map<string, { idempotencyKey: string; responseFingerprint: string; promise: Promise<void> }>()
+  const interventionSubmissions = new Map<string, { idempotencyKey: string; responseFingerprint: string; promise?: Promise<void> }>()
   const notify = () => listeners.forEach((listener) => listener())
   const executeCommand = async <T>(key: string, operation: () => Promise<T>): Promise<T> => {
     snapshot = { ...snapshot, commands: { ...snapshot.commands, [key]: { status: 'pending' } } }
@@ -95,6 +95,7 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       if (run.retryOfRunId && run.attempt < 2) throw new Error('A retry Run must use attempt 2 or greater')
       if (run.retryOfRunId === run.id) throw new Error('A Run cannot retry itself')
       const predecessor = run.retryOfRunId ? snapshot.state.runs[run.retryOfRunId] : undefined
+      if (run.retryOfRunId && !predecessor) throw new Error(`Retry predecessor ${run.retryOfRunId} does not exist`)
       if (predecessor && (predecessor.threadId !== run.threadId || !['completed', 'failed', 'cancelled'].includes(predecessor.status) || run.attempt !== predecessor.attempt + 1)) throw new Error(`Retry predecessor ${run.retryOfRunId} is incompatible with attempt ${run.attempt}`)
       snapshot = { ...snapshot, state: { ...snapshot.state, runs: { ...snapshot.state.runs, [run.id]: run } } }
       notify()
@@ -121,16 +122,22 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
       if (!intervention || intervention.status !== 'pending') return Promise.reject(new Error(`Intervention ${interventionId} is not pending`))
       if (!capabilities.intervention || !commands.respond) return Promise.reject(new Error('Intervention responses are not supported by this runtime'))
       const existing = interventionSubmissions.get(interventionId)
-      const responseFingerprint = fingerprint(value)
+      let responseFingerprint: string
+      try { responseFingerprint = fingerprint(value) } catch (error) { return Promise.reject(error) }
       if (existing) {
         if (existing.idempotencyKey !== idempotencyKey) return Promise.reject(new Error(`Intervention ${interventionId} already has a submitted response`))
         if (existing.responseFingerprint !== responseFingerprint) return Promise.reject(new Error(`Idempotency key for ${interventionId} is already bound to a different response`))
-        return existing.promise
+        if (existing.promise) return existing.promise
       }
       const operation = executeCommand(`respond:${interventionId}`, () => commands.respond!(interventionId, value, idempotencyKey))
       let tracked: Promise<void>
       tracked = operation.catch((error: unknown) => {
-        if (interventionSubmissions.get(interventionId)?.promise === tracked) interventionSubmissions.delete(interventionId)
+        const submission = interventionSubmissions.get(interventionId)
+        if (submission?.promise === tracked) {
+          // Retain the idempotency binding after a transport failure. Only the
+          // exact same logical response may be retried for this intervention.
+          interventionSubmissions.set(interventionId, { idempotencyKey: submission.idempotencyKey, responseFingerprint: submission.responseFingerprint })
+        }
         throw error
       }).finally(() => {
         if (snapshot.state.interventions[interventionId]?.status === 'pending') return
@@ -155,7 +162,43 @@ export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntim
 }
 
 function fingerprint(value: unknown): string {
-  try { return JSON.stringify(value) ?? String(value) } catch { return Object.prototype.toString.call(value) }
+  const canonical = canonicalValue(value, new WeakSet<object>())
+  return `${canonical.length}:${fnv1a(canonical, 0x811c9dc5)}:${fnv1a(canonical, 0x9e3779b9)}`
+}
+
+function canonicalValue(value: unknown, ancestors: WeakSet<object>): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+  if (typeof value === 'string') return `string:${JSON.stringify(value)}`
+  if (typeof value === 'boolean') return `boolean:${value}`
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) return 'number:NaN'
+    if (value === Infinity) return 'number:Infinity'
+    if (value === -Infinity) return 'number:-Infinity'
+    if (Object.is(value, -0)) return 'number:-0'
+    return `number:${String(value)}`
+  }
+  if (typeof value === 'bigint') return `bigint:${String(value)}`
+  if (typeof value === 'function' || typeof value === 'symbol') throw new Error(`Intervention response contains unsupported ${typeof value} value`)
+  if (ancestors.has(value)) throw new Error('Intervention response must not contain cyclic references')
+  ancestors.add(value)
+  try {
+    if (Array.isArray(value)) return `array:[${value.map((item) => canonicalValue(item, ancestors)).join(',')}]`
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) throw new Error('Intervention response must contain only plain objects and arrays')
+    return `object:{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalValue((value as Record<string, unknown>)[key], ancestors)}`).join(',')}}`
+  } finally {
+    ancestors.delete(value)
+  }
+}
+
+function fnv1a(value: string, seed: number): string {
+  let hash = seed >>> 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash.toString(16).padStart(8, '0')
 }
 
 function inspectionLimit(value: number | undefined, fallback: number, name: string): number {

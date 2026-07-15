@@ -114,4 +114,13 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 
 ## 下一阶段入口
 
-P3 功能切片已完成。进入 Beta 发布准备时，先完成 NVDA + Edge 人工抽查和公共 API 基线评审，再退出 alpha pre-mode、进入 beta pre-mode；“整个 Beta 周期无重大重构”作为持续验收项保留。
+### P3 Beta 收口补强
+
+- reducer 现在拒绝在 Activity、ToolCall、Intervention 或 Artifact 子生命周期仍打开时成功完成 Run；失败/取消会确定性关闭子状态，已可用 Artifact 仍可在 Run 终态后接收权威过期事件；
+- Task snapshot/patch/import 增加 title、status 和 activity 归属校验；AI SDK 与 AG-UI adapter 对含未关闭部分的 finish 降级为失败终态；
+- HITL 失败重试保留 idempotency key 与稳定响应指纹，只允许同 key、同逻辑响应重试；retry conformance 支持共享同一终态前序的并列 attempt；
+- API Extractor 报告和 React UI CSS 契约已纳入 `pnpm verify`，发布 tarball 增加精确内部依赖与真实 TypeScript consumer 校验；
+- Inspector 标题 ID 改为实例唯一，axe 覆盖 Inspector/Artifact 展开态，iframe 安全门覆盖所有 iframe 引入点，OSV workflow 固定到已审阅 commit；
+- alpha → beta Changesets 切换已在隔离 worktree 演练通过，公共 API 结论见 `docs/18-p3-public-api-baseline.md`。
+
+P3 功能与工程收口已完成。Beta 启动前只剩 `docs/19-nvda-edge-manual-acceptance.md` 的 NVDA + Edge 真实人工抽查以及维护者批准的版本/发布状态切换；“整个 Beta 周期无重大重构”作为持续验收项保留。

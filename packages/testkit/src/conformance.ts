@@ -6,6 +6,8 @@ export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-ord
 export interface AdapterConformanceOptions {
   expectedStatus?: Extract<RunStatus, 'completed' | 'failed' | 'cancelled'>
   sequence?: ConformanceSequenceMode
+  /** Existing canonical history required by fixtures such as retry attempts. */
+  initialState?: AgenticState
 }
 
 export interface ConformanceResult {
@@ -65,15 +67,22 @@ export function checkRetryAttemptConformance(attemptStreams: readonly (readonly 
   const issues: string[] = []
   if (attemptStreams.length < 2) return { state: createInitialState(), issues: ['retry fixture must contain at least two attempt streams'] }
   const state = attemptStreams.reduce((current, stream, index) => {
-    const result = checkAdapterConformance(stream)
+    const result = checkAdapterConformance(stream, { initialState: current })
     issues.push(...result.issues.map((issue) => `attempt ${index + 1}: ${issue}`))
-    return replayEvents(stream, current)
+    return result.state
   }, createInitialState())
   const runs = attemptStreams.map((stream) => state.runs[stream[0]?.runId ?? ''])
   runs.forEach((run, index) => {
     if (!run) issues.push(`attempt ${index + 1}: Run is missing`)
-    else if (run.attempt !== index + 1) issues.push(`attempt ${index + 1}: expected attempt number ${index + 1}, received ${run.attempt}`)
-    if (index > 0 && run?.retryOfRunId !== runs[index - 1]?.id) issues.push(`attempt ${index + 1}: retry predecessor is incorrect`)
+    else if (run.retryOfRunId) {
+      const predecessor = state.runs[run.retryOfRunId]
+      if (!predecessor) issues.push(`attempt ${index + 1}: retry predecessor ${run.retryOfRunId} is missing`)
+      else {
+        if (predecessor.threadId !== run.threadId) issues.push(`attempt ${index + 1}: retry predecessor belongs to another thread`)
+        if (!['completed', 'failed', 'cancelled'].includes(predecessor.status)) issues.push(`attempt ${index + 1}: retry predecessor is not terminal`)
+        if (run.attempt !== predecessor.attempt + 1) issues.push(`attempt ${index + 1}: expected attempt number ${predecessor.attempt + 1}, received ${run.attempt}`)
+      }
+    } else if (run.attempt !== 1) issues.push(`attempt ${index + 1}: an initial Run must use attempt 1`)
   })
   if (new Set(runs.flatMap((run) => run ? [run.id] : [])).size !== runs.filter(Boolean).length) issues.push('attempt Runs must use distinct IDs')
   return { state, issues: [...new Set(issues)] }
@@ -139,7 +148,8 @@ export function checkAdapterConformance(
   if (terminalIndexes.length !== 1) issues.push('fixture must contain exactly one terminal run event')
   else if (terminalIndexes[0] !== events.length - 1) issues.push('terminal run event must be last')
 
-  const state = replayEvents(events, createInitialState())
+  const initialState = options.initialState ?? createInitialState()
+  const state = replayEvents(events, initialState)
   const run = state.runs[first.runId]
   if (!run || !['completed', 'failed', 'cancelled'].includes(run.status)) issues.push('fixture must reach a terminal run status')
   if (options.expectedStatus && run?.status !== options.expectedStatus) {

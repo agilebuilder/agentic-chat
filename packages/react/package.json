@@ -29,8 +29,8 @@
     "react": ">=18 <20"
   },
   "dependencies": {
-    "@agentic-chat/core": "workspace:^",
-    "@agentic-chat/runtime": "workspace:^"
+    "@agentic-chat/core": "workspace:*",
+    "@agentic-chat/runtime": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b",

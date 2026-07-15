@@ -112,6 +112,7 @@ export function adaptAgUiEvents(sourceEvents: readonly AgUiEvent[]): AgUiAdaptRe
   const messageRoles = new Map<string, string>()
   const toolPhases = new Map<string, 'arguments' | 'awaiting_result'>()
   const openSteps = new Map<string, string>()
+  let terminal = false
 
   const diagnose = (code: AgUiAdapterDiagnostic['code'], message: string, sourceIndex: number) => {
     diagnostics.push({ code, message, sourceIndex })
@@ -133,6 +134,10 @@ export function adaptAgUiEvents(sourceEvents: readonly AgUiEvent[]): AgUiAdaptRe
     }
     if (!threadId || !runId) {
       diagnose('missing_run_context', `${sourceType} arrived before RUN_STARTED`, sourceIndex)
+      return
+    }
+    if (terminal) {
+      diagnose('invalid_event', `${sourceType} arrived after a terminal event`, sourceIndex)
       return
     }
 
@@ -161,20 +166,26 @@ export function adaptAgUiEvents(sourceEvents: readonly AgUiEvent[]): AgUiAdaptRe
           diagnose('invalid_event', 'RUN_FINISHED context does not match RUN_STARTED', sourceIndex)
           events.push(observed())
         } else {
-          if (source.result !== undefined) {
+          const openLifecycle = openSteps.size > 0 || toolPhases.size > 0 || messageRoles.size > 0
+          if (openLifecycle) {
+            diagnose('invalid_event', 'RUN_FINISHED arrived with open steps, tools, or messages', sourceIndex)
+            events.push({ ...base, type: 'run.failed', data: { error: { code: 'ag_ui.invalid_lifecycle', message: 'AG-UI Run finished with open child lifecycles' } } })
+          } else if (source.result !== undefined) {
             events.push({ ...base, type: 'result.available', data: { kind: 'ag-ui.run-result', result: source.result } })
-          }
-          events.push({
-            ...base,
-            eventId: `ag-ui:${runId}:${events.length + 1}`,
-            sequence: events.length + 1,
-            type: 'run.completed',
-            data: {},
-          })
+            events.push({
+              ...base,
+              eventId: `ag-ui:${runId}:${events.length + 1}`,
+              sequence: events.length + 1,
+              type: 'run.completed',
+              data: {},
+            })
+          } else events.push({ ...base, type: 'run.completed', data: {} })
+          terminal = true
         }
         break
       case 'RUN_ERROR':
         events.push({ ...base, type: 'run.failed', data: { error: { code: source.code ?? 'ag_ui.run_error', message: source.message } } })
+        terminal = true
         break
       case 'STEP_STARTED': { // AG-UI pairs steps by name; source index disambiguates retries.
         const activityId = `step:${sourceIndex}:${source.stepName}`

@@ -58,6 +58,12 @@ describe('AI SDK UI Message Stream adapter', () => {
     expect(failed.events[1]).toMatchObject({ type: 'run.failed', data: { error: { message: 'upstream unavailable' } } })
   })
 
+  it('fails rather than completing a stream with open parts', () => {
+    const adapted = adaptAiSdkUIMessageChunks([{ type: 'start' }, { type: 'start-step' }, { type: 'finish' }], { threadId: 't', runId: 'open' })
+    expect(adapted.events.at(-1)).toMatchObject({ type: 'run.failed', data: { error: { code: 'ai_sdk.invalid_lifecycle' } } })
+    expect(checkAdapterConformance(adapted.events, { expectedStatus: 'failed' }).issues).toEqual([])
+  })
+
   it('parses SSE payloads and termination markers', () => {
     expect(parseAiSdkSseData('{"type":"start"}')).toEqual({ type: 'start' })
     expect(parseAiSdkSseData('[DONE]')).toBeNull()

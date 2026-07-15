@@ -328,6 +328,10 @@ function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCa
 }
 
 export function ExperimentalRuntimeInspector({ runId, revealDiagnosticMessages = false }: { runId?: string; revealDiagnosticMessages?: boolean }) {
+  const id = useId()
+  const connectionHeadingId = `${id}-connection`
+  const eventsHeadingId = `${id}-events`
+  const diagnosticsHeadingId = `${id}-diagnostics`
   const snapshot = useRuntimeSelector((value) => value)
   const inspection = snapshot.experimentalInspection
   if (!inspection) return <Notice tone="warning" title="Inspector 未启用">创建 Runtime 时传入 experimentalInspection 才会采集有界事件元数据。</Notice>
@@ -337,9 +341,9 @@ export function ExperimentalRuntimeInspector({ runId, revealDiagnosticMessages =
   const diagnosticCount = domainDiagnostics.length + runtimeDiagnostics.length
   return <aside className="ac-inspector" aria-label="Runtime Inspector">
     <details><summary><strong>Runtime Inspector</strong><span>{events.length} 个事件 · {diagnosticCount} 条诊断</span></summary>
-      <section aria-labelledby="ac-inspector-connection"><h3 id="ac-inspector-connection">连接</h3><p><strong>{snapshot.connection.status}</strong> · 第 {snapshot.connection.attempt} 次尝试</p>{inspection.connections.length ? <ol className="ac-inspector-connections">{inspection.connections.map((item, index) => <li key={`${item.status}:${item.attempt}:${index}`}>{item.status} · {item.attempt}</li>)}</ol> : null}</section>
-      <section aria-labelledby="ac-inspector-events"><h3 id="ac-inspector-events">事件 envelope</h3>{events.length ? <div className="ac-inspector-table-wrap"><table><thead><tr><th scope="col">序号</th><th scope="col">类型</th><th scope="col">Run</th><th scope="col">结果</th></tr></thead><tbody>{events.map((item, index) => <tr key={`${item.eventId}:${index}`}><td>{item.sequence}</td><td><code>{item.type}</code></td><td><code>{item.runId}</code></td><td data-outcome={item.outcome}>{item.outcome}</td></tr>)}</tbody></table></div> : <p>暂无事件。</p>}</section>
-      <section aria-labelledby="ac-inspector-diagnostics"><h3 id="ac-inspector-diagnostics">诊断</h3>{diagnosticCount ? <ul className="ac-inspector-diagnostics">{domainDiagnostics.map((item, index) => <li key={`domain:${item.eventId}:${index}`}><code>core/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}{runtimeDiagnostics.map((item, index) => <li key={`runtime:${item.source}:${item.code}:${index}`}><code>{item.source}/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}</ul> : <p>暂无诊断。</p>}</section>
+      <section aria-labelledby={connectionHeadingId}><h3 id={connectionHeadingId}>连接</h3><p><strong>{snapshot.connection.status}</strong> · 第 {snapshot.connection.attempt} 次尝试</p>{inspection.connections.length ? <ol className="ac-inspector-connections">{inspection.connections.map((item, index) => <li key={`${item.status}:${item.attempt}:${index}`}>{item.status} · {item.attempt}</li>)}</ol> : null}</section>
+      <section aria-labelledby={eventsHeadingId}><h3 id={eventsHeadingId}>事件 envelope</h3>{events.length ? <div className="ac-inspector-table-wrap"><table><thead><tr><th scope="col">序号</th><th scope="col">类型</th><th scope="col">Run</th><th scope="col">结果</th></tr></thead><tbody>{events.map((item, index) => <tr key={`${item.eventId}:${index}`}><td>{item.sequence}</td><td><code>{item.type}</code></td><td><code>{item.runId}</code></td><td data-outcome={item.outcome}>{item.outcome}</td></tr>)}</tbody></table></div> : <p>暂无事件。</p>}</section>
+      <section aria-labelledby={diagnosticsHeadingId}><h3 id={diagnosticsHeadingId}>诊断</h3>{diagnosticCount ? <ul className="ac-inspector-diagnostics">{domainDiagnostics.map((item, index) => <li key={`domain:${item.eventId}:${index}`}><code>core/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}{runtimeDiagnostics.map((item, index) => <li key={`runtime:${item.source}:${item.code}:${index}`}><code>{item.source}/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}</ul> : <p>暂无诊断。</p>}</section>
       <p className="ac-inspector-privacy">仅保留事件 envelope 与连接状态；不采集事件 payload、连接错误文本、消息正文或工具参数。</p>
     </details>
   </aside>

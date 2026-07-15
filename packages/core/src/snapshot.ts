@@ -1,4 +1,4 @@
-import type { Activity, AgentRun, AgentTask, AgenticState, Artifact, Intervention, Message, RenderableContent, Thread, ToolCall } from './model.js'
+import type { Activity, AgentRun, AgentTask, AgenticState, Artifact, Intervention, Message, RenderableContent, TaskStatus, Thread, ToolCall } from './model.js'
 import { createInitialState } from './model.js'
 
 export interface CanonicalStreamCheckpoint {
@@ -53,6 +53,7 @@ const assertRevision = (revision: number, label: string): void => {
 }
 
 const validOptions = (options: readonly { value: string; label: string }[] | undefined, minimum: number): boolean => !!options && options.length >= minimum && new Set(options.map((option) => option.value)).size === options.length && options.every((option) => !!option.value.trim() && !!option.label.trim())
+const validTaskStatuses = new Set<TaskStatus>(['pending', 'in_progress', 'blocked', 'completed', 'cancelled'])
 
 export function createSnapshot(state: AgenticState, revision: number): CanonicalSnapshot {
   assertRevision(revision, 'Snapshot revision')
@@ -116,13 +117,25 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
   assertRevision(snapshot.revision, 'Snapshot revision')
   if (snapshot.schemaVersion === '0.1') {
     const legacy = structuredClone(snapshot.state)
-    return rebuildDerivedIndexes({
+    const migrated = {
       ...createInitialState(),
       ...legacy,
       taskRevisionByRunId: legacy.taskRevisionByRunId ?? {},
       rootActivityIdsByRunId: legacy.rootActivityIdsByRunId ?? {},
       childActivityIdsByParentId: legacy.childActivityIdsByParentId ?? {},
-    } as AgenticState)
+    } as AgenticState
+    return importSnapshot({
+      schemaVersion: '0.2',
+      revision: snapshot.revision,
+      entities: {
+        threads: values(migrated.threads), messages: values(migrated.messages), runs: values(migrated.runs),
+        activities: values(migrated.activities), toolCalls: values(migrated.toolCalls),
+        results: Object.entries(migrated.results).map(([runId, content]) => ({ runId, content: structuredClone(content) })),
+        interventions: values(migrated.interventions), tasks: values(migrated.tasks), artifacts: values(migrated.artifacts),
+      },
+      taskRevisionByRunId: structuredClone(migrated.taskRevisionByRunId),
+      streams: Object.entries(migrated.streams).map(([runId, stream]) => ({ runId, lastSequence: stream.lastSequence })),
+    })
   }
   if (snapshot.schemaVersion !== '0.2') throw new Error(`Unsupported snapshot schema ${String((snapshot as { schemaVersion?: unknown }).schemaVersion)}`)
 
@@ -183,6 +196,7 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
     if (run.retryOfRunId && run.attempt < 2) throw new Error(`Retry Run ${run.id} must use attempt 2 or greater`)
     if (run.retryOfRunId === run.id) throw new Error(`Run ${run.id} cannot retry itself`)
     const predecessor = run.retryOfRunId ? state.runs[run.retryOfRunId] : undefined
+    if (run.retryOfRunId && !predecessor) throw new Error(`Run ${run.id} references missing retry predecessor ${run.retryOfRunId}`)
     if (predecessor && (predecessor.threadId !== run.threadId || !['completed', 'failed', 'cancelled'].includes(predecessor.status) || run.attempt !== predecessor.attempt + 1)) throw new Error(`Run ${run.id} has invalid retry predecessor ${run.retryOfRunId}`)
     const visited = new Set([run.id])
     let retryOfRunId = run.retryOfRunId
@@ -195,9 +209,17 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
       if (!state.activities[activityId]) throw new Error(`Run ${run.id} references missing activity ${activityId}`)
       if (state.activities[activityId]?.runId !== run.id) throw new Error(`Run ${run.id} references activity ${activityId} from another run`)
     }
+    for (const activity of Object.values(state.activities)) {
+      if (activity.runId === run.id && !run.activityIds.includes(activity.id)) throw new Error(`Activity ${activity.id} is missing from Run ${run.id} activityIds`)
+    }
   }
   for (const task of Object.values(state.tasks)) {
+    if (typeof task.id !== 'string' || !task.id.trim()) throw new Error('Task contains an empty or invalid ID')
     if (!state.runs[task.runId]) throw new Error(`Task ${task.id} references missing run ${task.runId}`)
+    if (typeof task.title !== 'string' || !task.title.trim()) throw new Error(`Task ${task.id} has an empty title`)
+    if (typeof task.status !== 'string' || !validTaskStatuses.has(task.status)) throw new Error(`Task ${task.id} has invalid status ${String(task.status)}`)
+    if (task.activityId !== undefined && (typeof task.activityId !== 'string' || !task.activityId.trim() || !state.activities[task.activityId] || state.activities[task.activityId]?.runId !== task.runId)) throw new Error(`Task ${task.id} references invalid activity ${String(task.activityId)}`)
+    if (task.parentId !== undefined && (typeof task.parentId !== 'string' || !task.parentId.trim())) throw new Error(`Task ${task.id} has an empty parentId`)
     if (task.parentId && (!state.tasks[task.parentId] || state.tasks[task.parentId]?.runId !== task.runId)) throw new Error(`Task ${task.id} references invalid parent ${task.parentId}`)
     const visited = new Set([task.id])
     let parentId = task.parentId
@@ -247,6 +269,13 @@ export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnap
     if (artifact.sizeBytes !== undefined && (!Number.isSafeInteger(artifact.sizeBytes) || artifact.sizeBytes < 0)) throw new Error(`Artifact ${artifact.id} has invalid size`)
     if (artifact.checksum && (!artifact.checksum.value.trim() || !['sha256', 'sha384', 'sha512', 'other'].includes(artifact.checksum.algorithm))) throw new Error(`Artifact ${artifact.id} has invalid checksum`)
     if (artifact.expiresAt && !Number.isFinite(Date.parse(artifact.expiresAt))) throw new Error(`Artifact ${artifact.id} has invalid expiresAt`)
+  }
+  for (const run of Object.values(state.runs)) {
+    if (!['completed', 'failed', 'cancelled'].includes(run.status)) continue
+    if (Object.values(state.activities).some((item) => item.runId === run.id && ['pending', 'running', 'awaiting_input'].includes(item.status))) throw new Error(`Terminal Run ${run.id} contains an open activity`)
+    if (Object.values(state.toolCalls).some((item) => item.runId === run.id && item.status === 'running')) throw new Error(`Terminal Run ${run.id} contains a running tool call`)
+    if (Object.values(state.interventions).some((item) => item.runId === run.id && item.status === 'pending')) throw new Error(`Terminal Run ${run.id} contains a pending intervention`)
+    if (Object.values(state.artifacts).some((item) => item.runId === run.id && item.status === 'generating')) throw new Error(`Terminal Run ${run.id} contains a generating Artifact`)
   }
   return rebuildDerivedIndexes(state)
 }

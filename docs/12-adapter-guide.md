@@ -204,7 +204,7 @@ adapted.diagnostics.forEach((item) => runtime.reportDiagnostic({
 />
 ```
 
-Inspector 只记录 event envelope、applied/ignored/diagnostic 结果和 connection status/attempt，不记录 event `data` 或 connection error。diagnostic message 默认隐藏；仅在可信开发环境中使用 `experimentalInspector={{ revealDiagnosticMessages: true }}`。这不是 event recorder，也不会进入 canonical snapshot。
+Inspector 只记录 event envelope、applied/ignored/diagnostic 结果和 connection status/attempt，不记录 event `data` 或 connection error。diagnostic message 默认隐藏；仅在可信开发环境中使用 `experimentalInspector={{ revealDiagnosticMessages: true }}`。这不是 event recorder，也不会进入 canonical snapshot。payload-free 不代表匿名：`eventId`、`threadId`、`runId` 和 `source` 可能携带个人或业务标识，宿主应生成非敏感标识并限制 Inspector 访问。
 
 ### AG-UI Task state 约定（experimental）
 

@@ -80,4 +80,42 @@ describe('task snapshot and revision patches', () => {
     expect(state.tasks).toEqual({})
     expect(state.diagnostics.at(-1)?.message).toContain('parent cycle')
   })
+
+  it('rejects invalid task values in snapshots and patches', () => {
+    const emptyTitle = replayEvents([
+      started,
+      { ...envelope(2), type: 'tasks.snapshot', data: { revision: 1, tasks: [{ id: 'bad', title: '   ', status: 'pending' }] } },
+    ], createInitialState())
+    expect(emptyTitle.tasks).toEqual({})
+    expect(emptyTitle.diagnostics.at(-1)?.message).toContain('title')
+
+    const missingActivity = replayEvents([
+      started,
+      { ...envelope(2), type: 'task.patched', data: { baseRevision: 0, revision: 1, taskId: 'bad', patch: { operation: 'upsert', value: { title: 'Bad', status: 'pending', activityId: 'missing' } } } },
+    ], createInitialState())
+    expect(missingActivity.tasks).toEqual({})
+    expect(missingActivity.diagnostics.at(-1)?.message).toContain('invalid activity')
+
+    const invalidStatus = replayEvents([
+      started,
+      { ...envelope(2), type: 'tasks.snapshot', data: { revision: 1, tasks: [{ id: 'bad', title: 'Bad', status: 'invented' }] } as never },
+    ], createInitialState())
+    expect(invalidStatus.tasks).toEqual({})
+    expect(invalidStatus.diagnostics.at(-1)?.message).toContain('invalid status')
+
+    const emptyReference = replayEvents([
+      started,
+      { ...envelope(2), type: 'task.patched', data: { baseRevision: 0, revision: 1, taskId: 'bad', patch: { operation: 'upsert', value: { title: 'Bad', status: 'pending', activityId: '' } } } },
+    ], createInitialState())
+    expect(emptyReference.tasks).toEqual({})
+    expect(emptyReference.diagnostics.at(-1)?.message).toContain('activityId must not be empty')
+
+    const malformedUpdate = replayEvents([
+      started,
+      { ...envelope(2), type: 'tasks.snapshot', data: { revision: 1, tasks: [{ id: 'task', title: 'Task', status: 'pending' }] } },
+      { ...envelope(3), type: 'task.patched', data: { baseRevision: 1, revision: 2, taskId: 'task', patch: { operation: 'update', changes: { activityId: 42 } } } as never },
+    ], createInitialState())
+    expect(malformedUpdate.tasks.task?.activityId).toBeUndefined()
+    expect(malformedUpdate.diagnostics.at(-1)?.message).toContain('activityId must not be empty')
+  })
 })

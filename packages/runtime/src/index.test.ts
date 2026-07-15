@@ -88,6 +88,11 @@ describe('runtime external store contract', () => {
     expect(runtime.getState().runs['run-1']?.status).toBe('running')
   })
 
+  it('does not hydrate a retry with a missing predecessor', () => {
+    const runtime = createRuntime()
+    expect(() => runtime.hydrateRun({ id: 'run-2', threadId: 'thread-1', status: 'queued', attempt: 2, retryOfRunId: 'missing', activityIds: [], createdAt: '2026-07-13T00:00:00Z' })).toThrow('does not exist')
+  })
+
   it('initializes from the public canonical snapshot schema', () => {
     const state = replayEvents([started], createInitialState())
     const runtime = createRuntime({ initialSnapshot: createSnapshot(state, 4) })
@@ -132,12 +137,29 @@ describe('HITL command idempotency', () => {
     await expect(first).rejects.toThrow('forbidden')
     expect(calls).toBe(1)
     expect(runtime.getSnapshot().commands['respond:i1']).toMatchObject({ status: 'failed', error: 'forbidden' })
+    await expect(runtime.respondToIntervention('i1', 'approved', 'replacement-key')).rejects.toThrow('already has a submitted response')
+    await expect(runtime.respondToIntervention('i1', 'rejected', 'stable-key')).rejects.toThrow('different response')
 
     reject = false
     await runtime.respondToIntervention('i1', 'approved', 'stable-key')
     await runtime.respondToIntervention('i1', 'approved', 'stable-key')
     expect(calls).toBe(2)
     await expect(runtime.respondToIntervention('i1', 'rejected', 'different-key')).rejects.toThrow('already has a submitted response')
+  })
+
+  it('fingerprints logical JSON values deterministically and rejects unsafe shapes', async () => {
+    const respond = vi.fn(async () => undefined)
+    const runtime = createHitlRuntime(respond)
+    const first = runtime.respondToIntervention('i1', { approved: true, metadata: { a: 1, b: 2 } }, 'stable-key')
+    const reordered = runtime.respondToIntervention('i1', { metadata: { b: 2, a: 1 }, approved: true }, 'stable-key')
+    expect(first).toBe(reordered)
+    await first
+    expect(respond).toHaveBeenCalledTimes(1)
+
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    const another = createHitlRuntime(async () => undefined)
+    await expect(another.respondToIntervention('i1', cyclic, 'cycle-key')).rejects.toThrow('cyclic')
   })
 
   it('rejects a response after canonical resolution', async () => {

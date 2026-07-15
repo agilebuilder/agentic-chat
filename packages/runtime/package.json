@@ -26,7 +26,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@agentic-chat/core": "workspace:^"
+    "@agentic-chat/core": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b",

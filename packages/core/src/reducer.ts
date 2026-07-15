@@ -1,7 +1,8 @@
 import type { CanonicalEvent } from './events.js'
-import type { AgenticState, Diagnostic, RunStatus, StreamCursor } from './model.js'
+import type { AgenticState, AgentTask, Diagnostic, RunStatus, StreamCursor, TaskStatus } from './model.js'
 
 const terminalStatuses = new Set<RunStatus>(['completed', 'failed', 'cancelled'])
+const taskStatuses = new Set<TaskStatus>(['pending', 'in_progress', 'blocked', 'completed', 'cancelled'])
 const maxRetainedDiagnostics = 200
 export const MAX_RETAINED_EVENT_IDS_PER_RUN = 256
 
@@ -35,6 +36,30 @@ function taskParentCreatesCycle(tasks: AgenticState['tasks'], runId: string, tas
     currentId = current.parentId
   }
   return false
+}
+
+function invalidTask(state: AgenticState, task: Pick<AgentTask, 'id' | 'runId' | 'title' | 'status' | 'activityId'>): string | undefined {
+  if (typeof task.id !== 'string' || !task.id.trim()) return 'Task ID must not be empty'
+  if (typeof task.title !== 'string' || !task.title.trim()) return `Task ${task.id} title must not be empty`
+  if (typeof task.status !== 'string' || !taskStatuses.has(task.status)) return `Task ${task.id} has invalid status ${String(task.status)}`
+  if (task.activityId !== undefined) {
+    if (typeof task.activityId !== 'string' || !task.activityId.trim()) return `Task ${task.id} activityId must not be empty`
+    const activity = state.activities[task.activityId]
+    if (!activity || activity.runId !== task.runId) return `Task ${task.id} references invalid activity ${task.activityId}`
+  }
+  return undefined
+}
+
+function openChildDescription(state: AgenticState, runId: string): string | undefined {
+  const activity = Object.values(state.activities).find((item) => item.runId === runId && ['pending', 'running', 'awaiting_input'].includes(item.status))
+  if (activity) return `activity ${activity.id} is ${activity.status}`
+  const tool = Object.values(state.toolCalls).find((item) => item.runId === runId && item.status === 'running')
+  if (tool) return `tool call ${tool.id} is running`
+  const intervention = Object.values(state.interventions).find((item) => item.runId === runId && item.status === 'pending')
+  if (intervention) return `intervention ${intervention.id} is pending`
+  const artifact = Object.values(state.artifacts).find((item) => item.runId === runId && item.status === 'generating')
+  if (artifact) return `Artifact ${artifact.id} is generating`
+  return undefined
 }
 
 function diagnostic(state: AgenticState, event: CanonicalEvent, code: Diagnostic['code'], message: string): AgenticState {
@@ -85,8 +110,17 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
   }
 
   const existingRun = state.runs[event.runId]
-  if (existingRun && terminalStatuses.has(existingRun.status)) {
-    return diagnostic(state, event, 'invalid_transition', `Run ${event.runId} is already ${existingRun.status}`)
+  // Artifact availability may have an independent TTL that expires after the Run.
+  if (existingRun && terminalStatuses.has(existingRun.status) && event.type !== 'artifact.expired') {
+    const advancedCursor = advanceCursor(cursor, event)
+    const advanced = {
+      ...state,
+      streams: {
+        ...state.streams,
+        [event.runId]: { ...advancedCursor, compactedThroughSequence: advancedCursor.lastSequence, seenEventIds: {} },
+      },
+    }
+    return diagnostic(advanced, event, 'invalid_transition', `Run ${event.runId} is already ${existingRun.status}`)
   }
 
   let next: AgenticState = {
@@ -116,6 +150,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     if (retryOfRunId === event.runId) return diagnostic(next, event, 'invalid_transition', 'A Run cannot retry itself')
     if (!retryOfRunId && attempt !== 1) return diagnostic(next, event, 'invalid_transition', 'An initial Run must use attempt 1')
     if (retryOfRunId && attempt < 2) return diagnostic(next, event, 'invalid_transition', 'A retry Run must use attempt 2 or greater')
+    if (retryOfRunId && !predecessor) return diagnostic(next, event, 'invalid_transition', `Retry predecessor ${retryOfRunId} does not exist`)
     if (predecessor && (predecessor.threadId !== event.threadId || !terminalStatuses.has(predecessor.status) || attempt !== predecessor.attempt + 1)) {
       return diagnostic(next, event, 'invalid_transition', `Retry predecessor ${retryOfRunId} is incompatible with attempt ${attempt}`)
     }
@@ -284,9 +319,12 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
       if (!task.id || taskIds.has(task.id)) return diagnostic(next, event, 'invalid_transition', `Task snapshot contains duplicate or empty task ID ${task.id}`)
       const existingTaskWithId = next.tasks[task.id]
       if (existingTaskWithId && existingTaskWithId.runId !== event.runId) return diagnostic(next, event, 'invalid_transition', `Task ${task.id} belongs to another run`)
+      const taskError = invalidTask(next, { ...task, runId: event.runId })
+      if (taskError) return diagnostic(next, event, 'invalid_transition', taskError)
       taskIds.add(task.id)
     }
     for (const task of event.data.tasks) {
+      if (task.parentId !== undefined && (typeof task.parentId !== 'string' || !task.parentId.trim())) return diagnostic(next, event, 'invalid_transition', `Task ${task.id} parentId must not be empty`)
       if (task.parentId && !taskIds.has(task.parentId)) return diagnostic(next, event, 'invalid_transition', `Task ${task.id} references missing parent ${task.parentId}`)
     }
     const snapshotTasks = Object.fromEntries(event.data.tasks.map((task) => [task.id, { ...task, runId: event.runId }]))
@@ -316,14 +354,20 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
       delete next.tasks[event.data.taskId]
     } else if (patch.operation === 'upsert') {
       const parentId = patch.value.parentId
+      if (parentId !== undefined && (typeof parentId !== 'string' || !parentId.trim())) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} parentId must not be empty`)
       if (parentId && (!next.tasks[parentId] || next.tasks[parentId]?.runId !== event.runId)) {
         return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} references missing parent ${parentId}`)
       }
       if (taskParentCreatesCycle(next.tasks, event.runId, event.data.taskId, parentId)) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} creates a parent cycle`)
-      next.tasks[event.data.taskId] = { id: event.data.taskId, runId: event.runId, ...patch.value }
+      const upsertedTask = { id: event.data.taskId, runId: event.runId, ...patch.value }
+      const taskError = invalidTask(next, upsertedTask)
+      if (taskError) return diagnostic(next, event, 'invalid_transition', taskError)
+      next.tasks[event.data.taskId] = upsertedTask
     } else {
       if (!existingTask) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} does not exist`)
       const { parentId, activityId, ...changes } = patch.changes
+      if (parentId !== undefined && parentId !== null && (typeof parentId !== 'string' || !parentId.trim())) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} parentId must not be empty`)
+      if (activityId !== undefined && activityId !== null && (typeof activityId !== 'string' || !activityId.trim())) return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} activityId must not be empty`)
       if (parentId && (!next.tasks[parentId] || next.tasks[parentId]?.runId !== event.runId || parentId === existingTask.id)) {
         return diagnostic(next, event, 'invalid_transition', `Task ${event.data.taskId} references invalid parent ${parentId}`)
       }
@@ -333,6 +377,8 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
       else if (parentId !== undefined) updatedTask.parentId = parentId
       if (activityId === null) delete updatedTask.activityId
       else if (activityId !== undefined) updatedTask.activityId = activityId
+      const taskError = invalidTask(next, updatedTask)
+      if (taskError) return diagnostic(next, event, 'invalid_transition', taskError)
       next.tasks[event.data.taskId] = updatedTask
     }
     next.taskRevisionByRunId[event.runId] = event.data.revision
@@ -340,15 +386,33 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     // A sequenced source event outside the current canonical slice still advances the cursor.
   } else {
     const status: RunStatus = event.type === 'run.completed' ? 'completed' : event.type === 'run.failed' ? 'failed' : 'cancelled'
+    const openChild = status === 'completed' ? openChildDescription(next, event.runId) : undefined
+    if (openChild) return diagnostic(next, event, 'invalid_transition', `Run ${event.runId} cannot complete while ${openChild}`)
     next.runs[event.runId] = { ...existingRun, status, endedAt: event.timestamp, ...(event.type === 'run.failed' ? { error: event.data.error } : {}) }
     if (status === 'failed' || status === 'cancelled') {
-      for (const activityId of existingRun.activityIds) {
-        const activity = next.activities[activityId]
-        if (activity?.status === 'running') next.activities[activityId] = { ...activity, status, endedAt: event.timestamp }
+      for (const activity of Object.values(next.activities)) {
+        if (activity.runId === event.runId && ['pending', 'running', 'awaiting_input'].includes(activity.status)) next.activities[activity.id] = { ...activity, status, endedAt: event.timestamp }
       }
       for (const tool of Object.values(next.toolCalls)) {
         if (tool.runId === event.runId && tool.status === 'running') {
           next.toolCalls[tool.id] = { ...tool, status, endedAt: event.timestamp, ...(status === 'failed' && event.type === 'run.failed' ? { error: event.data.error } : {}) }
+        }
+      }
+      for (const intervention of Object.values(next.interventions)) {
+        if (intervention.runId === event.runId && intervention.status === 'pending') {
+          next.interventions[intervention.id] = { ...intervention, status: 'expired', expiredAt: event.timestamp }
+        }
+      }
+      for (const artifact of Object.values(next.artifacts)) {
+        if (artifact.runId === event.runId && artifact.status === 'generating') {
+          next.artifacts[artifact.id] = {
+            ...artifact,
+            status: 'failed',
+            endedAt: event.timestamp,
+            error: status === 'failed' && event.type === 'run.failed'
+              ? event.data.error
+              : { code: 'run_cancelled', message: 'Artifact generation was cancelled with its Run' },
+          }
         }
       }
     }

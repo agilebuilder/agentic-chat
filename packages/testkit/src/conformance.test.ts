@@ -59,6 +59,15 @@ describe('adapter conformance suite', () => {
     expect(checkRetryAttemptConformance([first, second]).issues).toEqual([])
   })
 
+  it('accepts sibling retries that share the same terminal predecessor', () => {
+    const first = [event(1, 'run.started'), { ...event(2, 'run.completed'), type: 'run.failed', data: { error: { code: 'failed', message: 'Failed' } } } as CanonicalEvent]
+    const retry = (runId: string, suffix: string): CanonicalEvent[] => [
+      { ...event(1, 'run.started'), eventId: `retry-${suffix}-1`, runId, data: { attempt: 2, retryOfRunId: 'run-1' } } as CanonicalEvent,
+      { ...event(2, 'run.completed'), eventId: `retry-${suffix}-2`, runId } as CanonicalEvent,
+    ]
+    expect(checkRetryAttemptConformance([first, retry('run-2a', 'a'), retry('run-2b', 'b')]).issues).toEqual([])
+  })
+
   it('checks intervention recovery and duplicate resolution rejection', () => {
     const events: CanonicalEvent[] = [
       event(1, 'run.started'),

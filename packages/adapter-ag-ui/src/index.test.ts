@@ -119,6 +119,32 @@ describe('AG-UI adapter fixture', () => {
     expect(checkAdapterConformance(adapted.events).issues).toEqual([])
   })
 
+  it('fails rather than completing a Run with an open tool lifecycle', () => {
+    const adapted = adaptAgUiEvents([
+      { type: 'RUN_STARTED', threadId: 'thread-ag', runId: 'run-ag' },
+      { type: 'TOOL_CALL_START', toolCallId: 'open', toolCallName: 'search' },
+      { type: 'RUN_FINISHED', threadId: 'thread-ag', runId: 'run-ag' },
+    ])
+    expect(adapted.events.at(-1)).toMatchObject({ type: 'run.failed', data: { error: { code: 'ag_ui.invalid_lifecycle' } } })
+    expect(checkAdapterConformance(adapted.events, { expectedStatus: 'failed' }).issues).toEqual([])
+  })
+
+  it('diagnoses and ignores source events after a terminal event', () => {
+    const adapted = adaptAgUiEvents([
+      { type: 'RUN_STARTED', threadId: 'thread-ag', runId: 'run-ag' },
+      { type: 'TOOL_CALL_START', toolCallId: 'open', toolCallName: 'search' },
+      { type: 'RUN_FINISHED', threadId: 'thread-ag', runId: 'run-ag' },
+      { type: 'TOOL_CALL_RESULT', messageId: 'late', toolCallId: 'open', content: 'late' },
+      { type: 'RUN_FINISHED', threadId: 'thread-ag', runId: 'run-ag' },
+    ])
+    expect(adapted.events.map((event) => event.type)).toEqual(['run.started', 'tool.started', 'run.failed'])
+    expect(adapted.diagnostics.slice(-2).map((item) => item.message)).toEqual([
+      'TOOL_CALL_RESULT arrived after a terminal event',
+      'RUN_FINISHED arrived after a terminal event',
+    ])
+    expect(checkAdapterConformance(adapted.events, { expectedStatus: 'failed' }).issues).toEqual([])
+  })
+
   it('diagnoses an event before run context exists', () => {
     expect(adaptAgUiEvents([{ type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'orphan' }]).diagnostics[0]?.code).toBe('missing_run_context')
   })

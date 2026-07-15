@@ -86,4 +86,48 @@ describe('canonical snapshot', () => {
     malformed.entities.runs[0]!.attempt = 0
     expect(() => importSnapshot(malformed)).toThrow('invalid attempt')
   })
+
+  it('rejects invalid task values and completed Runs with open children', () => {
+    const taskSnapshot = createSnapshot(replayEvents(events.slice(0, 2), createInitialState()), 1)
+    taskSnapshot.entities.tasks[0]!.title = '   '
+    expect(() => importSnapshot(taskSnapshot)).toThrow('empty title')
+
+    const invalidId = createSnapshot(replayEvents(events.slice(0, 2), createInitialState()), 1)
+    invalidId.entities.tasks[0]!.id = '   '
+    expect(() => importSnapshot(invalidId)).toThrow('invalid ID')
+
+    const withActivity = replayEvents([
+      events[0]!,
+      { ...events[1]!, type: 'activity.started', data: { activityId: 'open', kind: 'workflow' } },
+    ], createInitialState())
+    const terminalSnapshot = createSnapshot(withActivity, 2)
+    terminalSnapshot.entities.runs[0]!.status = 'completed'
+    terminalSnapshot.entities.runs[0]!.endedAt = '2026-07-13T00:00:02Z'
+    expect(() => importSnapshot(terminalSnapshot)).toThrow('open activity')
+
+    terminalSnapshot.entities.runs[0]!.status = 'failed'
+    expect(() => importSnapshot(terminalSnapshot)).toThrow('open activity')
+  })
+
+  it('rejects missing retry predecessors and one-sided Activity membership', () => {
+    const missingRetry = createSnapshot(replayEvents(events.slice(0, 1), createInitialState()), 1)
+    missingRetry.entities.runs[0]!.attempt = 2
+    missingRetry.entities.runs[0]!.retryOfRunId = 'missing'
+    expect(() => importSnapshot(missingRetry)).toThrow('missing retry predecessor')
+
+    const withActivity = replayEvents([
+      events[0]!,
+      { ...events[1]!, type: 'activity.started', data: { activityId: 'orphaned', kind: 'workflow' } },
+    ], createInitialState())
+    const oneSided = createSnapshot(withActivity, 2)
+    oneSided.entities.runs[0]!.activityIds = []
+    expect(() => importSnapshot(oneSided)).toThrow('missing from Run')
+  })
+
+  it('validates legacy snapshots after migrating their wire shape', () => {
+    const state = replayEvents(events.slice(0, 1), createInitialState())
+    state.tasks.bad = { id: 'bad', runId: 'r1', title: ' ', status: 'pending' }
+    const legacy: LegacyCanonicalSnapshot = { schemaVersion: '0.1', revision: 1, state: structuredClone(state) as unknown as LegacyCanonicalSnapshot['state'] }
+    expect(() => importSnapshot(legacy)).toThrow('empty title')
+  })
 })

@@ -3,7 +3,7 @@ import { createInitialState, type CanonicalEvent } from '@agentic-chat/core'
 import { AgenticChatProvider, createRendererRegistry } from '@agentic-chat/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { AgenticChat, ArtifactCard, ArtifactPanel, Composer, InterventionPanel, Markdown, MessageList, MessageView, SandboxedArtifactFrame, TaskPanel, ThreadList, ToolFallback } from './index.js'
+import { AgenticChat, ArtifactCard, ArtifactPanel, Composer, ExperimentalRuntimeInspector, InterventionPanel, Markdown, MessageList, MessageView, SandboxedArtifactFrame, TaskPanel, ThreadList, ToolFallback } from './index.js'
 
 const events: CanonicalEvent[] = [
   { schemaVersion: '0.1', eventId: 'ui-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {} },
@@ -220,5 +220,9 @@ describe('React default UI', () => {
     expect(html).not.toContain('event payload secret')
     expect(html).not.toContain('connection secret')
     expect(html).not.toContain('diagnostic secret')
+
+    const duplicated = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><ExperimentalRuntimeInspector /><ExperimentalRuntimeInspector /></AgenticChatProvider>)
+    const ids = [...duplicated.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1])
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })

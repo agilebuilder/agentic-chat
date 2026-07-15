@@ -31,14 +31,15 @@ pnpm quality:browser
 - `pnpm check:security` 阻止公共实现中的 `dangerouslySetInnerHTML`、动态代码执行，并校验 iframe sandbox/referrer/URI policy 与 Inspector payload-free 约束。
 - Markdown、unsafe URL、Artifact iframe allowlist/lazy mount、Inspector 脱敏均有自动化测试。
 - GitHub `Dependency Security` workflow 使用 Google OSV-Scanner v2 扫描 `pnpm-lock.yaml`，发现已知漏洞即失败，将 SARIF 上传到 GitHub Security，并在每周一重新扫描；该 Job 只授予官方 reusable workflow 要求的 `actions: read`、`contents: read` 与 `security-events: write`。
-- Inspector 默认关闭；启用后不采集 event data、消息正文、工具输入输出和连接 error。diagnostic message 默认隐藏。
+- Inspector 默认关闭；启用后不采集 event data、消息正文、工具输入输出和连接 error。diagnostic message 默认隐藏。payload-free 不等于匿名：`eventId`、`threadId`、`runId` 和 `source` 仍可能携带个人或业务标识，宿主必须使用非敏感标识并控制 Inspector 的访问范围。
 - 宿主仍负责 API key、鉴权、权限校验、后端幂等、签名 URL 和日志保留策略；前端状态不是授权依据。
+- Runtime 的 intervention 响应指纹用于前端进程内的误触/并发合并，不是安全摘要或服务端幂等凭据；端到端 exactly-once 仍必须由后端持久化并校验 idempotency key。
 
 ## 4. 公共 API 与发布
 
 - P3.7 新增 API 明确命名为 `experimentalInspection` / `ExperimentalRuntimeInspector`，不纳入 Beta 稳定承诺。
-- Run、Activity、ToolCall、Message、adapter/runtime contract 是 Beta 稳定核心；Task、Artifact、复杂 Intervention、subagent 仍按文档成熟度演进。
-- Changesets 已记录 runtime/react-ui 的新增能力；正式发布前需退出当前 alpha pre-mode、进入 beta pre-mode、检查生成版本并以 `--tag beta` 发布。
+- 已由公开包根入口导出的 Run、Activity、ToolCall、Message、Task、Artifact、Intervention、subagent 与 adapter/runtime contract 均纳入 Beta 基线；只有明确以 `Experimental` / `experimental` 命名的 API 不进入兼容性承诺。执行门见 `docs/18-p3-public-api-baseline.md`。
+- Changesets 已记录新增能力；正式发布前依次执行 `pre exit`、`pre enter beta`、`version`、完整验证和 `release:beta`。pre-mode 已决定 npm dist-tag，不向 `changeset publish` 追加 `--tag beta`。
 - “整个 Beta 周期无重大重构”是持续门，不能在 Beta 启动当天一次性判定；每个后续 PR 必须给出迁移说明并通过 tarball consumer 验证。
 
 ## 5. P3.7 完成判定

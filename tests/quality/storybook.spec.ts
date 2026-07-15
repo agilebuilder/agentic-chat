@@ -36,7 +36,13 @@ test('same default UI switches across three adapter runtimes', async ({ page }) 
 for (const [state, id] of Object.entries(storyIds)) {
   test(`${state} state has no automatically detectable accessibility violations`, async ({ page }) => {
     await openStory(page, id)
-    const results = await new AxeBuilder({ page }).include('.ac-root').analyze()
+    if (state === 'artifacts') await page.locator('.ac-artifact-preview').first().evaluate((details: HTMLDetailsElement) => { details.open = true; details.dispatchEvent(new Event('toggle')) })
+    if (state === 'inspector') await page.locator('.ac-inspector > details').evaluate((details: HTMLDetailsElement) => { details.open = true })
+    const axe = new AxeBuilder({ page }).include('.ac-root')
+    // The host-authorized preview document is an external accessibility scope;
+    // this suite still audits the expanded card and verifies iframe policy below.
+    if (state === 'artifacts') axe.exclude('.ac-artifact-frame')
+    const results = await axe.analyze()
     expect(results.violations).toEqual([])
   })
 }
@@ -144,6 +150,7 @@ test('Artifact iframe preview mounts only after keyboard expansion with sandboxi
   await page.keyboard.press('Enter')
   const frame = preview.locator('iframe')
   await expect(frame).toBeVisible()
+  await expect(frame).toHaveAttribute('title', /\S+/)
   await expect(frame).toHaveAttribute('sandbox', '')
   await expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
 })

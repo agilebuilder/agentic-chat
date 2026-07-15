@@ -24,6 +24,14 @@ for (const root of ['packages/core/src', 'packages/runtime/src', 'packages/react
   }
 }
 
+const uiFiles = await sourceFiles(resolve('packages/react-ui/src'))
+const iframeSites = []
+for (const file of uiFiles) {
+  const source = await readFile(file, 'utf8')
+  const count = (source.match(/<iframe\b/gu)?.length ?? 0) + (source.match(/(?:createElement|jsx|jsxs)\s*\(\s*['"]iframe['"]/gu)?.length ?? 0)
+  iframeSites.push(...Array.from({ length: count }, () => file))
+}
+assert.deepEqual(iframeSites, [resolve('packages/react-ui/src/index.tsx')], 'Every Artifact iframe must use the single reviewed secure primitive')
 const ui = await readFile(resolve('packages/react-ui/src/index.tsx'), 'utf8')
 assert.match(ui, /sandbox=""/u, 'Artifact iframe must keep an empty sandbox')
 assert.match(ui, /referrerPolicy="no-referrer"/u, 'Artifact iframe must not send a referrer')

@@ -46,6 +46,12 @@ describe('run attempts', () => {
     expect(state.diagnostics.at(-1)?.message).toContain('attempt 1')
   })
 
+  it('rejects a retry whose predecessor is missing', () => {
+    const state = replayEvents([event('run-2', 1, 'run.started', { attempt: 2, retryOfRunId: 'missing' })], createInitialState())
+    expect(state.runs['run-2']).toBeUndefined()
+    expect(state.diagnostics.at(-1)?.message).toContain('does not exist')
+  })
+
   it('rejects child activities whose parent is missing or already terminal', () => {
     const state = replayEvents([
       event('run-1', 1, 'run.started', {}),

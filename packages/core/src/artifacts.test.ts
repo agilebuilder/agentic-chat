@@ -39,6 +39,33 @@ describe('Artifact lifecycle', () => {
     expect(expired.artifacts.a1).toMatchObject({ status: 'expired', endedAt: '2026-07-15T10:00:04Z' })
   })
 
+  it('allows an available Artifact TTL to expire after its Run completed', () => {
+    const state = replayEvents([
+      event(1, 'run.started', {}),
+      event(2, 'artifact.created', { artifactId: 'a1', name: 'a.txt', kind: 'text/plain' }),
+      event(3, 'artifact.available', { artifactId: 'a1' }),
+      event(4, 'run.completed', {}),
+      event(5, 'artifact.expired', { artifactId: 'a1' }),
+    ], createInitialState())
+    expect(state.runs['run-1']?.status).toBe('completed')
+    expect(state.artifacts.a1?.status).toBe('expired')
+    expect(state.diagnostics).toEqual([])
+  })
+
+  it('keeps terminal sequence progress when an invalid event precedes Artifact expiry', () => {
+    const state = replayEvents([
+      event(1, 'run.started', {}),
+      event(2, 'artifact.created', { artifactId: 'a1', name: 'a.txt', kind: 'text/plain' }),
+      event(3, 'artifact.available', { artifactId: 'a1' }),
+      event(4, 'run.completed', {}),
+      event(5, 'source.observed', { sourceType: 'heartbeat' }),
+      event(6, 'artifact.expired', { artifactId: 'a1' }),
+    ], createInitialState())
+    expect(state.artifacts.a1?.status).toBe('expired')
+    expect(state.streams['run-1']?.lastSequence).toBe(6)
+    expect(state.diagnostics).toHaveLength(1)
+  })
+
   it('rejects broken provenance and version chains', () => {
     const started = reduceEvent(createInitialState(), event(1, 'run.started', {}))
     const badSource = reduceEvent(started, event(2, 'artifact.created', { artifactId: 'a1', name: 'a', kind: 'text', provenance: { type: 'tool', toolCallId: 'missing' } }))

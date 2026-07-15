@@ -107,7 +107,12 @@ export function adaptAiSdkUIMessageChunks(chunks: readonly AiSdkUIMessageChunk[]
       case 'reasoning-delta':
       case 'reasoning-end': { const id = stringField(chunk, 'id'); if (type === 'reasoning-end' && id) reasoningParts.delete(id); diagnose('unsupported_event', 'Reasoning is hidden until visibility semantics are configured', sourceIndex); observed(type); break }
       case 'finish':
-        if (tools.size || textParts.size || reasoningParts.size || openStepId) diagnose('invalid_event', 'finish arrived with open stream parts', sourceIndex)
+        if (tools.size || textParts.size || reasoningParts.size || openStepId) {
+          diagnose('invalid_event', 'finish arrived with open stream parts', sourceIndex)
+          terminal = true
+          emit('run.failed', { error: { code: 'ai_sdk.invalid_lifecycle', message: 'AI SDK stream finished with open parts' } })
+          break
+        }
         terminal = true
         emit('run.completed', {})
         break

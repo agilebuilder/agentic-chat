@@ -105,6 +105,40 @@ describe('canonical reducer', () => {
     expect(state.toolCalls['tool-call-1']?.status).toBe('cancelled')
   })
 
+  it('rejects successful completion with open child lifecycles', () => {
+    const running = replayEvents(chatBiSuccessfulRun.slice(0, 2), createInitialState())
+    const completed: CanonicalEvent = { schemaVersion: '0.1', eventId: 'complete-with-tool', type: 'run.completed', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:03Z', data: {} }
+    const state = reduceEvent(running, completed)
+    expect(state.runs['run-1']?.status).toBe('running')
+    expect(state.diagnostics.at(-1)?.message).toContain('tool-activity-1')
+  })
+
+  it('closes pending interventions and generating Artifacts on cancellation', () => {
+    const state = replayEvents([
+      chatBiSuccessfulRun[0]!,
+      { schemaVersion: '0.1', eventId: 'request', type: 'intervention.requested', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:01Z', data: { interventionId: 'approval', kind: 'approval', prompt: 'Continue?' } },
+      { schemaVersion: '0.1', eventId: 'artifact', type: 'artifact.created', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:02Z', data: { artifactId: 'report', name: 'report.txt', kind: 'text/plain' } },
+      { schemaVersion: '0.1', eventId: 'cancel', type: 'run.cancelled', threadId: 'thread-1', runId: 'run-1', sequence: 4, timestamp: '2026-07-13T00:00:03Z', data: {} },
+    ], createInitialState())
+    expect(state.interventions.approval).toMatchObject({ status: 'expired', expiredAt: '2026-07-13T00:00:03Z' })
+    expect(state.artifacts.report).toMatchObject({ status: 'failed', endedAt: '2026-07-13T00:00:03Z', error: { code: 'run_cancelled' } })
+  })
+
+  it('closes every open Activity belonging to a failed Run', () => {
+    const started = reduceEvent(createInitialState(), chatBiSuccessfulRun[0]!)
+    const seeded = {
+      ...started,
+      activities: {
+        pending: { id: 'pending', runId: 'run-1', kind: 'workflow' as const, status: 'pending' as const, order: 0 },
+        awaiting: { id: 'awaiting', runId: 'run-1', kind: 'workflow' as const, status: 'awaiting_input' as const, order: 1 },
+      },
+    }
+    const failed: CanonicalEvent = { schemaVersion: '0.1', eventId: 'fail-open', type: 'run.failed', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:02Z', data: { error: { code: 'failed', message: 'Failed' } } }
+    const state = reduceEvent(seeded, failed)
+    expect(state.activities.pending?.status).toBe('failed')
+    expect(state.activities.awaiting?.status).toBe('failed')
+  })
+
   it('bounds event ids while preserving idempotent historical replay', () => {
     const events: CanonicalEvent[] = [chatBiSuccessfulRun[0]!]
     for (let sequence = 2; sequence <= 600; sequence += 1) {

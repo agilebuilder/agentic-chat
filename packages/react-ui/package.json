@@ -33,9 +33,9 @@
     "react-dom": ">=18 <20"
   },
   "dependencies": {
-    "@agentic-chat/core": "workspace:^",
-    "@agentic-chat/runtime": "workspace:^",
-    "@agentic-chat/react": "workspace:^"
+    "@agentic-chat/core": "workspace:*",
+    "@agentic-chat/runtime": "workspace:*",
+    "@agentic-chat/react": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b && node ../../scripts/copy-react-ui-assets.mjs",
