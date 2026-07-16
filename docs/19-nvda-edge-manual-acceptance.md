@@ -1,6 +1,6 @@
 # NVDA + Edge 人工无障碍抽查
 
-> P3 Beta 首发阻塞项。自动 axe 和键盘测试不能替代本检查。本机目前已确认有 Microsoft Edge，但尚未安装 NVDA，因此状态保持“待执行”。
+> 外部并行人工验收项。自动 axe 和键盘测试不能替代本检查；维护者团队将在完成后补录结果，本项不阻塞 P4.0 或 Beta。若发现 blocker/high，进入 P4 质量加固并复验。
 
 ## 1. 环境与记录
 
@@ -14,6 +14,7 @@
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm build
 pnpm storybook
 ```
 
@@ -27,7 +28,7 @@ pnpm storybook
 2. Enter 展开，确认状态变为展开；
 3. 使用标题导航依次到“连接”“事件 envelope”“诊断”；
 4. 进入事件表格，确认列标题与单元格关系可理解；
-5. 确认默认只读出诊断 source/code 或“详细信息已隐藏”，不出现 payload、连接错误文本、消息正文或工具参数。
+5. 当前 Story 显式开启合成 diagnostic message 展示，因此读到合成诊断描述属于预期；确认仍不出现 event payload、连接错误原文、消息正文或工具参数。默认隐藏模式由单元与浏览器安全门覆盖。
 
 ### Human in the loop
 

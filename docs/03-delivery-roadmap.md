@@ -352,8 +352,8 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 - [x] snapshot 后 replay 增量与纯 event replay 得到等价状态；0.2 wire snapshot 与公共 conformance helper 已在 ChatBI、AG-UI、编码 Agent 行为 fixture 的中间运行状态验证；
 - [x] adapter 遇到未知事件可降级且有 diagnostic；三种 Adapter 均将未知或未建模事件降级为无 payload 的 `source.observed`，并生成脱敏 diagnostic；
 - [x] artifact 来源、版本和状态清晰；不可变版本链、显式 provenance、完整生命周期、snapshot/conformance、双向导航和拒绝默认的懒加载 sandbox 预览已覆盖；
-- [x] 完成无障碍、性能和安全 Beta 检查清单；axe/键盘/视觉状态矩阵、1,000 Activity 与 opt-in Inspector 长 Run 预算、静态安全门、payload-free Inspector 测试及 OSV lockfile workflow 已纳入自动化，人工 NVDA 抽查保留为 Beta 首发操作项；
-- [ ] 公共 API 在整个 Beta 周期内除明确 experimental 部分外无重大重构需求。
+- [x] 完成无障碍、性能和安全 Beta 检查清单；axe/键盘/视觉状态矩阵、1,000 Activity 与 opt-in Inspector 长 Run 预算、静态安全门、payload-free Inspector 测试及 OSV lockfile workflow 已纳入自动化；人工 NVDA 抽查由外部团队并行执行、结果后补，不阻塞 P4.0 或 Beta；
+- [x] Beta 公共 API 基线已经建立并由 API Extractor/CSS contract 门保护；“整个 Beta/RC 周期无重大重构”转为 P4 持续兼容性门，不再作为一个无法在 P3 结束当天判定的单次验收项。
 
 ### 6.5 关于 Claudian 的判定
 
@@ -431,6 +431,12 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 - [ ] 无未处理的高风险安全问题；
 - [ ] 新用户能依据文档独立完成 adapter 与自定义 renderer；
 - [ ] 版本、弃用、漏洞报告和维护范围公开明确。
+
+### 7.5 执行计划
+
+P4 按 P4.0～P4.7 八个工作包执行，依次覆盖阶段过渡、Schema/API 稳定、文档站、开源治理与发布工程、质量加固、真实宿主接入、RC 稳定期和 1.0 发布。详细依赖、产出、门禁和建议顺序见 [P4 执行计划](./21-p4-execution-plan.md)。
+
+P3 的功能与工程实现结论、自动化证据以及转入 P4 的保留项见 [P3 工程验收报告](./20-p3-acceptance-report.md)。NVDA + Edge 人工抽查已转交独立测试人员；它不阻塞 P4 工程启动，但在 1.0 `latest` 发布前必须有明确结论，发现 blocker/high 时必须回到 P4.5 修复并复验。
 
 ## 8. P5：生态扩展
 
