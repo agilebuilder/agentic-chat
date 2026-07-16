@@ -22,6 +22,7 @@ function run(command, args, cwd = root) {
 await rm(temporaryRoot, { recursive: true, force: true })
 await mkdir(packsDirectory, { recursive: true })
 await mkdir(consumerDirectory, { recursive: true })
+await mkdir(resolve(consumerDirectory, 'src'), { recursive: true })
 
 for (const packageName of publicPackages) {
   run('pnpm', ['--dir', `packages/${packageName}`, 'pack', '--pack-destination', packsDirectory, '--silent'])
@@ -31,6 +32,12 @@ const archives = (await readdir(packsDirectory)).filter((file) => file.endsWith(
 assert.equal(archives.length, publicPackages.length, 'every public package must produce one archive')
 
 for (const archive of archives) {
+  const contentsResult = spawnSync('tar', ['-tf', resolve(packsDirectory, archive)], { encoding: 'utf8', shell: process.platform === 'win32' })
+  assert.equal(contentsResult.status, 0, `cannot inspect packed contents for ${archive}`)
+  const contents = new Set(contentsResult.stdout.split(/\r?\n/u).filter(Boolean))
+  assert.ok(contents.has('package/README.md'), `${archive} must contain a package README`)
+  assert.ok(contents.has('package/dist/LICENSE'), `${archive} must contain the MIT license`)
+
   const manifestResult = spawnSync('tar', ['-xOf', resolve(packsDirectory, archive), 'package/package.json'], { encoding: 'utf8', shell: process.platform === 'win32' })
   assert.equal(manifestResult.status, 0, `cannot inspect packed manifest for ${archive}`)
   const manifest = JSON.parse(manifestResult.stdout)
@@ -52,14 +59,18 @@ const reactDomPackage = JSON.parse(await readFile(resolve(root, 'node_modules/re
 const typescriptPackage = JSON.parse(await readFile(resolve(root, 'node_modules/typescript/package.json'), 'utf8'))
 const reactTypesPackage = JSON.parse(await readFile(resolve(root, 'node_modules/@types/react/package.json'), 'utf8'))
 const reactDomTypesPackage = JSON.parse(await readFile(resolve(root, 'node_modules/@types/react-dom/package.json'), 'utf8'))
+const vitePackage = JSON.parse(await readFile(resolve(root, 'node_modules/vite/package.json'), 'utf8'))
+const viteReactPackage = JSON.parse(await readFile(resolve(root, 'node_modules/@vitejs/plugin-react/package.json'), 'utf8'))
 dependencies.react = reactPackage.version
 dependencies['react-dom'] = reactDomPackage.version
 dependencies.typescript = typescriptPackage.version
 dependencies['@types/react'] = reactTypesPackage.version
 dependencies['@types/react-dom'] = reactDomTypesPackage.version
+dependencies.vite = vitePackage.version
+dependencies['@vitejs/plugin-react'] = viteReactPackage.version
 
 const overrides = Object.fromEntries(Object.entries(dependencies).filter(([name]) => name.startsWith('@agentic-chat/')))
-await writeFile(resolve(consumerDirectory, 'package.json'), `${JSON.stringify({ private: true, type: 'module', dependencies, pnpm: { overrides } }, null, 2)}\n`)
+await writeFile(resolve(consumerDirectory, 'package.json'), `${JSON.stringify({ private: true, type: 'module', scripts: { build: 'tsc --noEmit && vite build' }, dependencies, pnpm: { overrides } }, null, 2)}\n`)
 await writeFile(resolve(consumerDirectory, 'smoke.mjs'), `
 import assert from 'node:assert/strict'
 import { createElement } from 'react'
@@ -99,10 +110,32 @@ const props = {} as AgenticChatProps
 void AgenticChat
 void props
 `)
-await writeFile(resolve(consumerDirectory, 'tsconfig.json'), `${JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true, jsx: 'react-jsx', skipLibCheck: false }, include: ['smoke.ts'] }, null, 2)}\n`)
+await writeFile(resolve(consumerDirectory, 'src/main.tsx'), `
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { AgenticChat } from '@agentic-chat/react-ui'
+import '@agentic-chat/react-ui/styles.css'
+import { createRuntime } from '@agentic-chat/runtime'
+import { adaptAiSdkUIMessageChunks } from '@agentic-chat/adapter-ai-sdk'
+
+const runtime = createRuntime()
+for (const event of adaptAiSdkUIMessageChunks([{ type: 'start' }, { type: 'finish' }], { threadId: 'vite-thread', runId: 'vite-run' }).events) runtime.dispatch(event)
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode><AgenticChat runtime={runtime} runId="vite-run" onSend={async () => undefined} /></StrictMode>,
+)
+`)
+await writeFile(resolve(consumerDirectory, 'index.html'), '<!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>\n')
+await writeFile(resolve(consumerDirectory, 'vite.config.ts'), `
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({ plugins: [react()] })
+`)
+await writeFile(resolve(consumerDirectory, 'tsconfig.json'), `${JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true, jsx: 'react-jsx', skipLibCheck: false }, include: ['smoke.ts', 'src/**/*.tsx', 'vite.config.ts'] }, null, 2)}\n`)
 
 run('pnpm', ['install', '--ignore-workspace', '--prefer-offline', '--ignore-scripts', '--frozen-lockfile=false'], consumerDirectory)
 run('node', ['smoke.mjs'], consumerDirectory)
-run('pnpm', ['exec', 'tsc', '--noEmit'], consumerDirectory)
+run('pnpm', ['build'], consumerDirectory)
 
-console.log(`Verified ${archives.length} installable package archives.`)
+console.log(`Verified ${archives.length} installable package archives with ESM/SSR imports, TypeScript, and a production Vite build.`)

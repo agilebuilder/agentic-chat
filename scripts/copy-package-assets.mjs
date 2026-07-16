@@ -1,6 +1,6 @@
 import { copyFile, mkdir } from 'node:fs/promises'
 
-const publicPackages = ['core', 'runtime', 'testkit', 'react', 'react-ui', 'adapter-chatbi']
+const publicPackages = ['core', 'runtime', 'testkit', 'react', 'react-ui', 'adapter-chatbi', 'adapter-ai-sdk']
 const rootLicense = new URL('../LICENSE', import.meta.url)
 const packages = new URL('../packages/', import.meta.url)
 
