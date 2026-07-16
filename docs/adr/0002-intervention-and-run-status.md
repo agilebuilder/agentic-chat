@@ -1,6 +1,6 @@
 # ADR-0002：Intervention 与 Run 状态分离
 
-状态：已接受（P0，Intervention UI 仍为 experimental）。
+状态：已接受（P0）；P3.4 已通过 ADR-0008 将 Intervention UI 与 Runtime command state 纳入 Beta 公共基线。
 
 ## 背景
 
