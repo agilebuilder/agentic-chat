@@ -51,6 +51,38 @@ describe('canonical reducer', () => {
     expect(next.diagnostics.at(-1)?.code).toBe('invalid_transition')
   })
 
+  it('diagnoses and ignores a future canonical event without cancelling the run', () => {
+    const started = reduceEvent(createInitialState(), chatBiSuccessfulRun[0]!)
+    const futureEvent = {
+      ...chatBiSuccessfulRun[0]!,
+      eventId: 'evt-future',
+      type: 'future.event',
+      sequence: 2,
+      data: { future: true },
+    } as unknown as CanonicalEvent
+
+    const next = reduceEvent(started, futureEvent)
+
+    expect(next.runs['run-1']?.status).toBe('running')
+    expect(next.streams['run-1']?.lastSequence).toBe(2)
+    expect(next.diagnostics.at(-1)).toMatchObject({ code: 'unknown_event', eventId: 'evt-future', runId: 'run-1' })
+  })
+
+  it('diagnoses a future canonical event before a run exists', () => {
+    const futureEvent = {
+      ...chatBiSuccessfulRun[0]!,
+      eventId: 'evt-future-first',
+      type: 'future.event',
+      data: { future: true },
+    } as unknown as CanonicalEvent
+
+    const next = reduceEvent(createInitialState(), futureEvent)
+
+    expect(next.runs['run-1']).toBeUndefined()
+    expect(next.streams['run-1']?.lastSequence).toBe(1)
+    expect(next.diagnostics.at(-1)?.code).toBe('invalid_transition')
+  })
+
   it('does not replace an existing run when run.started re-enters with a new event id', () => {
     const progressed = replayEvents(chatBiSuccessfulRun.slice(0, 2), createInitialState())
     const duplicateStart: CanonicalEvent = { ...chatBiSuccessfulRun[0]!, eventId: 'evt-start-again', sequence: 3 }

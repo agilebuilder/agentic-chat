@@ -384,7 +384,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     next.taskRevisionByRunId[event.runId] = event.data.revision
   } else if (event.type === 'source.observed') {
     // A sequenced source event outside the current canonical slice still advances the cursor.
-  } else {
+  } else if (event.type === 'run.completed' || event.type === 'run.failed' || event.type === 'run.cancelled') {
     const status: RunStatus = event.type === 'run.completed' ? 'completed' : event.type === 'run.failed' ? 'failed' : 'cancelled'
     const openChild = status === 'completed' ? openChildDescription(next, event.runId) : undefined
     if (openChild) return diagnostic(next, event, 'invalid_transition', `Run ${event.runId} cannot complete while ${openChild}`)
@@ -416,6 +416,9 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
         }
       }
     }
+  } else {
+    const unknownType = (event as { type: string }).type
+    return diagnostic(next, event, 'unknown_event', `Unknown canonical event type ${unknownType}`)
   }
   const resultingRun = next.runs[event.runId]
   const resultingCursor = next.streams[event.runId]
