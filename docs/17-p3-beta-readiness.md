@@ -15,7 +15,7 @@
 pnpm quality:browser
 ```
 
-自动化检查不能替代发布前的屏幕阅读器人工抽查；Beta 首发前至少使用 NVDA + Edge 验证一次 Inspector、HITL 和 Artifact preview。
+自动化检查不能替代屏幕阅读器人工抽查。NVDA + Edge 已交由外部团队并行验证 Inspector、HITL 和 Artifact preview，结果完成后补录；它不阻塞 P4.0 或 Beta。若后续发现 blocker/high，进入 P4 质量加固并复验。
 
 ## 2. 性能门
 
@@ -40,6 +40,7 @@ pnpm quality:browser
 - P3.7 新增 API 明确命名为 `experimentalInspection` / `ExperimentalRuntimeInspector`，不纳入 Beta 稳定承诺。
 - 已由公开包根入口导出的 Run、Activity、ToolCall、Message、Task、Artifact、Intervention、subagent 与 adapter/runtime contract 均纳入 Beta 基线；只有明确以 `Experimental` / `experimental` 命名的 API 不进入兼容性承诺。执行门见 `docs/18-p3-public-api-baseline.md`。
 - Changesets 已记录新增能力；正式发布前依次执行 `pre exit`、`pre enter beta`、`version`、完整验证和 `release:beta`。pre-mode 已决定 npm dist-tag，不向 `changeset publish` 追加 `--tag beta`。
+- 当前 `release:beta` 是本地发布脚本，尚无 trusted publishing/OIDC 与 provenance workflow；在满足 provenance 门或由维护者明确修改发布要求前，不得执行 Beta 发布。
 - “整个 Beta 周期无重大重构”是持续门，不能在 Beta 启动当天一次性判定；每个后续 PR 必须给出迁移说明并通过 tarball consumer 验证。
 
 ## 5. P3.7 完成判定

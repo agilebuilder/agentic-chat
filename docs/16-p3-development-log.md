@@ -123,4 +123,15 @@ P3 以“多个生产风格来源通过同一公共契约、同一默认 UI 可�
 - Inspector 标题 ID 改为实例唯一，axe 覆盖 Inspector/Artifact 展开态，iframe 安全门覆盖所有 iframe 引入点，OSV workflow 固定到已审阅 commit；
 - alpha → beta Changesets 切换已在隔离 worktree 演练通过，公共 API 结论见 `docs/18-p3-public-api-baseline.md`。
 
-P3 功能与工程收口已完成。Beta 启动前只剩 `docs/19-nvda-edge-manual-acceptance.md` 的 NVDA + Edge 真实人工抽查以及维护者批准的版本/发布状态切换；“整个 Beta 周期无重大重构”作为持续验收项保留。
+P3 功能与工程收口已完成，最终判定和证据见 `docs/20-p3-acceptance-report.md`。NVDA + Edge 真实人工抽查已由维护者安排外部团队并行执行、结果后补，不阻塞 P4.0 或 Beta；结果若发现 blocker/high，则回到 P4 质量加固工作包修复并复验。alpha → beta 的版本/发布状态切换尚未执行，作为 P4.0 的显式发布门保留。“整个 Beta/RC 周期无重大重构”作为 P4 持续兼容性门。
+
+## P4.0 发布前准备（2026-07-16）
+
+- 保持 alpha pre-mode，不执行正式 Changesets 切换、npm publish 或 dist-tag 变更；隔离演算确认 Beta 版本为 core/runtime/react/react-ui `0.1.0-beta.2`，testkit/adapter-chatbi/adapter-ai-sdk `0.1.0-beta.1`；
+- 复核发现未知 canonical event 会落入 Run 终态兜底并错误取消活动 Run；已改为记录 `unknown_event`、推进连续流游标并保持领域状态不变，增加回归测试和 patch changeset；
+- `adapter-ag-ui` 继续 `private: true`，Changesets ignore 与 private package 配置保持不变；
+- 公开包增加 tarball README 门，修正 `adapter-ai-sdk` LICENSE 复制遗漏；
+- npm 身份和组织 owner 可读检查通过，六个已发布包均为 public；`adapter-ai-sdk` 尚未创建，`adapter-ag-ui` registry 记录为已撤回且本地禁止发布；
+- GitHub 基线提交的 CI 与 Dependency Security 全绿；Beta 真发布前仍需建立 trusted publishing/OIDC provenance。NVDA 由外部团队并行执行，不作为 P4.0 发布门。
+
+完整准备记录、操作顺序与回滚方案见 `docs/22-p4-beta-release-readiness.md`。

@@ -48,4 +48,4 @@ pnpm release:beta
 
 `release:beta` 内部只执行构建与 `changeset publish`，不要追加 `--tag beta`。Changesets 会使用 pre-mode 中记录的 `beta` 同时生成版本后缀和 npm dist-tag。
 
-正式切换属于发布状态变更，应在 NVDA + Edge 人工抽查通过、工作区干净且维护者确认后单独执行和提交。
+正式切换属于发布状态变更，只能在工作区干净、P4.0 发布门通过且维护者确认后单独执行和提交。NVDA + Edge 由外部团队并行执行、结果后补，不作为 P4.0 或 Beta 的切换前置条件。
