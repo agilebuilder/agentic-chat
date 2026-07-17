@@ -14,6 +14,7 @@
     "check:release": "node scripts/check-release-config.mjs",
     "check:size": "node scripts/check-package-size.mjs",
     "check:security": "node scripts/check-security.mjs",
+    "check:licenses": "node scripts/check-licenses.mjs",
     "api:check": "node scripts/check-public-api.mjs",
     "api:update": "node scripts/check-public-api.mjs --update",
     "api:governance": "node scripts/check-api-governance.mjs",
@@ -37,10 +38,12 @@
     "release:alpha": "pnpm build && changeset publish",
     "release:beta": "node scripts/publish-beta.mjs",
     "release:beta:check": "node scripts/check-beta-release.mjs --registry",
+    "release:check": "node scripts/check-stable-release.mjs",
+    "release:publish": "node scripts/publish-stable-release.mjs",
     "verify:node": "pnpm --filter @agentic-chat/node-harness test",
     "verify:host:ai-sdk": "node scripts/verify-registry-ai-sdk-host.mjs",
     "verify:packages": "node scripts/verify-packages.mjs",
-    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:release && pnpm check:security && pnpm docs:check && pnpm typecheck && pnpm test && pnpm build && pnpm examples:verify && pnpm docs:build && pnpm api:check && pnpm api:governance && pnpm check:size && pnpm verify:node && pnpm verify:packages"
+    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:release && pnpm check:security && pnpm check:licenses && pnpm docs:check && pnpm typecheck && pnpm test && pnpm build && pnpm examples:verify && pnpm docs:build && pnpm api:check && pnpm api:governance && pnpm check:size && pnpm verify:node && pnpm verify:packages"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

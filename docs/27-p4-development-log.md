@@ -25,7 +25,8 @@ Completed. Seven public packages are available from npm Beta with integrity and 
 - Added contribution, conduct, security, support and maintainer policies; CODEOWNERS; PR and structured issue forms; Dependabot configuration.
 - Added homepage, bugs, keywords and Node engine metadata to every public package and enforced them in the release gate.
 - Removed the completed one-time adapter bootstrap token workflow and script.
-- Beta Trusted Publishing remains main-only, protected and provenance-enabled. RC/stable release workflow and protected environment remain required before P4.6.
+- Beta Trusted Publishing remains main-only, protected and provenance-enabled.
+- Added a main-only, protected OIDC/provenance workflow for package-specific RC versions and unified `1.0.0`, plus production-license auditing, immutable Action pins, stability ledger and release/rollback runbook. The `npm-release` environment and seven matching npm Trusted Publishers must be configured before P4.6.
 
 ## P4.4 compatibility evidence
 
