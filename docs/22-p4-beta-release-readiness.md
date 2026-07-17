@@ -1,15 +1,12 @@
 # P4.0 Beta 发布准备与回滚清单
 
-> 状态：版本切换已获维护者批准并完成；npm beta 未发布；Changesets 当前处于 `beta` pre-mode。
-> 基线：`3964f02 Merge pull request #1 from agilebuilder/codex/p4-beta-readiness`。
+> 状态：七个公开包的 npm Beta 已发布并完成公共 registry/consumer 验收；Changesets 继续处于 `beta` pre-mode。
+> 发布基线：`3aa758e Merge pull request #2 from agilebuilder/codex/p4-beta-versioning`。
 > 审查日期：2026-07-17。
 
 ## 1. 结论
 
-P3 工程基线已经合入 `main`，P4.0 Changesets Beta 版本切换已在独立分支完成，但当前仍不得执行 npm Beta 发布。真正发布前还必须完成以下剩余发布门：
-
-1. 维护者已为六个现有包配置 npm trusted publisher，并创建 GitHub `npm-beta` environment；仓库还需合入精确同名的 `publish-beta.yml` 并用真实 GitHub-hosted run 验证 OIDC/provenance；
-2. 首次创建 `@agentic-chat/adapter-ai-sdk` 后再绑定 trusted publisher，并核验初始 dist-tag 行为。
+P3 工程基线、P4.0 Changesets Beta 版本和发布 workflow 均已合入 `main`。维护者明确批准 npm Beta 发布后，七个公开包已从 `main@3aa758e` 发布并通过 registry 与 clean consumer 验收；`adapter-ag-ui` 继续保持 private。Beta 发布没有创建 Git tag 或 GitHub Release，也没有移动六个既有包的 `latest`。
 
 NVDA + Edge 由维护者团队并行执行、结果后补，不属于 P4.0 或 Beta 发布前置条件。
 
@@ -30,7 +27,7 @@ NVDA + Edge 由维护者团队并行执行、结果后补，不属于 P4.0 或 B
 | `@agentic-chat/adapter-ai-sdk` | `0.1.0-alpha.0` | `0.1.0-beta.1` | 是，首次创建 |
 | `@agentic-chat/adapter-ag-ui` | `0.1.0-alpha.0` | 不变 | 否，保持 private |
 
-Beta 序号延续各包既有 prerelease 计数，不是统一的 `beta.0`。版本、changelog 与 pre-state 已生成；registry 检查确认七个精确 Beta 版本均尚未发布。
+Beta 序号延续各包既有 prerelease 计数，不是统一的 `beta.0`。版本、changelog 与 pre-state 已生成；registry 已确认七个精确 Beta 版本全部公开可见且 manifest 与审定内容一致。
 
 ## 3. Package manifest 审查
 
@@ -85,7 +82,7 @@ core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优
 仓库侧发布门已准备为：
 
 - `.github/workflows/publish-beta.yml`：只允许从 `main` 手动触发；preflight 运行版本/registry 检查、`pnpm verify` 和 23 项浏览器质量门；publish job 使用 `npm-beta` environment、OIDC `id-token: write`、Node 22.23.1、npm 11.18.0 和 provenance；
-- `.github/workflows/bootstrap-adapter-ai-sdk.yml`：同样经过完整 preflight 和 environment 审批，只在输入精确确认文本并提供短期 `NPM_BOOTSTRAP_TOKEN` 时首次创建 adapter；发布后断言 manifest、`beta` tag 与“未创建 `latest`”；
+- `.github/workflows/bootstrap-adapter-ai-sdk.yml`：同样经过完整 preflight 和 environment 审批，只在输入精确确认文本并提供短期 `NPM_BOOTSTRAP_TOKEN` 时首次创建 adapter；发布后断言 manifest、`beta` tag，并只接受初始 `latest` 不存在或指向唯一已发布版本；
 - 两条 workflow 的 checkout、Node 和 pnpm Actions 均固定为已复核的完整 commit SHA；正式 publish workflow 不读取长期 npm token；
 - `pnpm check:release` 将 workflow 文件名、environment、main-only、OIDC、provenance、npm 版本、Action SHA pin、显式 beta tag 和 private AG-UI 约束纳入 `pnpm verify`；
 - 正式切换前，隔离 clone 已完成 alpha → beta 版本演算、registry 未发布检查、adapter tarball 构建和 `npm publish --dry-run`；该演练没有改变仓库或外部发布状态。
@@ -98,7 +95,19 @@ core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优
 - `pnpm release:beta:check` 通过，七个目标版本在 registry 均为 unpublished；
 - `pnpm verify` 再次通过：130/130、API、包体、Node harness、七包 tarball consumer、TypeScript 与 production Vite build 全绿；
 - `pnpm quality:browser` 再次通过：23/23；七个 Beta tarball 均通过 `npm publish --dry-run --access public --tag beta`；
-- npm publish、dist-tag、Git tag 与 GitHub Release 均未执行。
+- 截至版本切换提交时，npm publish、dist-tag、Git tag 与 GitHub Release 均未执行。
+
+正式 Beta 发布结果（2026-07-17）：
+
+- 一次性 bootstrap run `29552387574` 从 `main@3aa758e` 创建 `@agentic-chat/adapter-ai-sdk@0.1.0-beta.1`，公开包页面和 Sigstore transparency log 均显示 GitHub Actions provenance；短期 GitHub Environment secret 随后删除，维护者撤销 token 并为新包配置 trusted publisher；
+- npm 首次建包同时初始化 `beta` 与 `latest` 为 `0.1.0-beta.1`。维护者批准删除 `latest`，但 npm 10.9.8 与 npm 11.18.0 的删除请求均由 registry 返回 HTTP 400；该行为作为首次建包 registry 例外记录，不解释为稳定 API 承诺，使用文档要求显式 `@beta` 或精确版本；
+- 正式 publish run `29553517200` 首次通过 OIDC 发布 core/runtime 后，在 react 的 trusted publisher 配置处以 `ENEEDAUTH` 停止；修正配置后，第三次幂等 attempt 校验并跳过已存在版本，发布剩余包并完成最终七包校验；
+- `pnpm release:beta:check` 从公共 registry 确认七个 manifest、精确内部依赖、license 与 repository 全部匹配；每个版本均有 integrity 和 SLSA provenance attestation；
+- 六个既有包的 `alpha` 与 `latest` 保持原 Alpha，`beta` 指向本次 Beta；首次 adapter 的 `beta` 与初始 `latest` 均指向 `0.1.0-beta.1`；
+- 全新公共 npm consumer 使用七个精确版本完成 `pnpm install`、七个根入口 ESM import、严格 TypeScript typecheck 和 React 19 + Vite production build；
+- 发布记录收尾后 `pnpm verify` 再次通过（130/130、API、包体、Node harness、七包 tarball consumer），`pnpm quality:browser` 23/23 通过；同时修复 Windows CRLF checkout 下 CSS API 基线的换行比较误报；
+- 建立 `beta-regression` GitHub label、结构化 Beta regression issue template 与 `docs/23-beta-compatibility-ledger.md`；
+- 未创建 Git tag 或 GitHub Release，`adapter-ag-ui` 未发布。
 
 ## 6. 获批后的准确操作顺序
 
@@ -143,16 +152,16 @@ core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优
 - npm 版本不可覆盖。发现缺陷时创建 patch changeset，发布递增的下一 Beta；
 - 默认不 unpublish。只有安全或法律紧急情况且维护者明确批准时才考虑撤回；
 - 错误 dist-tag 只能在维护者批准后修正，优先把 `beta` 指回最后已知良好 Beta；保留 `alpha` 与已有包的 `latest`；
-- 若 `adapter-ai-sdk` 首次发布初始化 `latest`，记录该 registry 限制并在文档中要求显式 `@beta`/精确版本，除非维护者另行批准 dist-tag 方案；
+- `adapter-ai-sdk` 首次发布确实初始化了 `latest`；经维护者批准的 npm 10/11 删除尝试均返回 HTTP 400。该 registry 例外已记录，文档与验收继续要求显式 `@beta`/精确版本；
 - Git tag/GitHub Release 已创建后不得静默重写，使用新版本和更正说明。
 
 ## 8. P4.0 完成门
 
 发布准备完成不等于 Beta 已发布。P4.0 只有在维护者批准并完成 npm 发布后，才能勾选以下最终项：
 
-- [ ] 七个公开包均存在精确 Beta 版本与 `beta` dist-tag；
-- [ ] provenance、README、LICENSE、repository 与内部依赖全部可从 registry/tarball 验证；
-- [ ] 公共 npm clean consumer 的 install/typecheck/production build/smoke 全绿；
-- [ ] 仓库提交、npm 版本、changelog 和获批 tag/release（若创建）一致；
-- [ ] 已有包的 `latest` 未移动；首次 adapter 的初始 `latest` 行为已记录；
-- [ ] 无未处理 blocker/high，或残余风险有维护者书面批准。
+- [x] 七个公开包均存在精确 Beta 版本与 `beta` dist-tag；
+- [x] provenance、README、LICENSE、repository 与内部依赖全部可从 registry/tarball 验证；
+- [x] 公共 npm clean consumer 的 install/typecheck/production build/smoke 全绿；
+- [x] 仓库提交、npm 版本、changelog 和获批 tag/release（本次未创建）一致；
+- [x] 已有包的 `latest` 未移动；首次 adapter 的初始 `latest` 行为与删除失败已记录；
+- [x] 无未处理 blocker/high；首次 adapter 的 `latest` registry 例外已获维护者批准处理并公开记录。

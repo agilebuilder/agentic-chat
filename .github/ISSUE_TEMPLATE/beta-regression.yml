@@ -1,0 +1,63 @@
+name: Beta regression
+description: Report a behavior that regressed while using an @agentic-chat Beta package.
+title: "[Beta regression]: "
+labels:
+  - beta-regression
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for testing Agentic Chat Beta. Please remove secrets and private payloads from all examples and logs.
+  - type: input
+    id: packages
+    attributes:
+      label: Package versions
+      description: List every @agentic-chat package and exact version involved.
+      placeholder: "@agentic-chat/core@0.1.0-beta.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Event source or adapter
+      options:
+        - ChatBI
+        - AI SDK UI Message Stream
+        - Custom adapter
+        - Runtime or UI without an adapter
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression
+      description: Describe the previous behavior, current behavior, and why this is a regression.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide a sanitized event sequence, repository, or executable steps.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include browser, Node.js, React, TypeScript, bundler, operating system, and relevant capabilities.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Include adapter/runtime diagnostics only after removing messages, credentials, private URLs, and business data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I reproduced this with exact public Beta versions rather than workspace source aliases.
+          required: true
+        - label: I removed credentials, private payloads, personal data, and confidential URLs.
+          required: true

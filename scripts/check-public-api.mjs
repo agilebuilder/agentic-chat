@@ -23,7 +23,7 @@ const cssReportPath = resolve('etc/api/react-ui.css.md')
 if (update) await writeFile(cssReportPath, cssReport, 'utf8')
 else {
   const baseline = await readFile(cssReportPath, 'utf8').catch(() => '')
-  if (baseline !== cssReport) {
+  if (baseline.replace(/\r\n/gu, '\n') !== cssReport) {
     console.error('React UI CSS contract changed. Review the diff, then run pnpm api:update.')
     failed = true
   }

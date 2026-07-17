@@ -25,6 +25,12 @@ const response = await fetch(`https://registry.npmjs.org/-/package/${encodedName
 assert.equal(response.status, 200)
 const tags = await response.json()
 assert.equal(tags.beta, adapter.manifest.version, 'adapter-ai-sdk beta tag must point at the bootstrapped version')
-assert.equal(tags.latest, undefined, 'adapter-ai-sdk bootstrap unexpectedly created latest; stop for maintainer review')
+assert.ok(
+  tags.latest === undefined || tags.latest === adapter.manifest.version,
+  'adapter-ai-sdk bootstrap latest tag must be absent or point at the only published version',
+)
 
-console.log(`${adapter.manifest.name}@${adapter.manifest.version} is public on beta, matches the reviewed manifest, and did not create latest.`)
+const latestSummary = tags.latest === undefined
+  ? 'did not create latest'
+  : `created the registry-initialized latest=${tags.latest}`
+console.log(`${adapter.manifest.name}@${adapter.manifest.version} is public on beta, matches the reviewed manifest, and ${latestSummary}.`)
