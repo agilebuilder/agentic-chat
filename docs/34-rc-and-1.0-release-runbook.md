@@ -5,11 +5,13 @@ This runbook is executable only from a reviewed commit on `main`. Every npm publ
 ## One-time repository and npm setup
 
 1. Create the GitHub Environment `npm-release`, restrict deployment to `main`, require the designated maintainer reviewers and prevent self-review where the team policy requires it.
-2. For each of the seven public npm packages, add a Trusted Publisher for repository `agilebuilder/agentic-chat`, workflow `publish-release.yml` and environment `npm-release`.
+2. Immediately before the first approved RC, edit each public package's existing Trusted Publisher from workflow `publish-beta.yml` / environment `npm-beta` to workflow `publish-release.yml` / environment `npm-release`. npm permits only one Trusted Publisher per package, so this intentionally retires the automated Beta channel.
 3. Keep `@agentic-chat/adapter-ag-ui` private and without a Trusted Publisher.
 4. Enable GitHub Pages with GitHub Actions as its source. Protect `main` with the Node 20/22, compatibility, browser, OSV and documentation checks required before merge.
 
 No npm token is stored by the workflow. It uses GitHub OIDC and npm provenance.
+
+For all seven npm package settings, the final values are: provider GitHub Actions; organization `agilebuilder`; repository `agentic-chat`; workflow filename `publish-release.yml` (filename only); environment `npm-release`; allowed action `npm publish`. Do not change `@agentic-chat/adapter-ag-ui`.
 
 ## Beta to first RC version preparation
 
