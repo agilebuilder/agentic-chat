@@ -1,29 +1,46 @@
-import type { AgenticRuntime, RuntimeSnapshot } from '@agentic-chat/runtime'
-import { AgenticChatProvider, useActivity, useArtifact, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRun, useRunActivityIds, useRunResult, useRuntimeSelector, useToolCall, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
-import { Component, useId, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import type { Artifact, Intervention, InterventionField } from '@agentic-chat/core'
+import { selectRunAttemptHistory, type AgenticRuntime, type RuntimeSnapshot } from '@agentic-chat/runtime'
+import { AgenticChatProvider, useActivity, useActivityArtifacts, useArtifact, useArtifactVersionHistory, useChildActivityIds, useCommandState, useConnection, useMessage, useRendererRegistry, useRendererVersion, useRootActivityIds, useRun, useRunArtifacts, useRunResult, useRuntimeSelector, useToolCall, type ArtifactPreviewRenderer, type ArtifactPreviewRendererProps, type ArtifactRendererProps, type MessageRendererProps, type RendererMode, type RendererRegistry, type ResultRendererProps, type ToolRendererProps } from '@agentic-chat/react'
+import { Component, useId, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { Markdown } from './markdown.js'
 
 export { Markdown, type MarkdownProps } from './markdown.js'
 
 const statusLabels = { queued: '排队中', running: '运行中', awaiting_input: '等待操作', paused: '已暂停', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
 const toolStatusLabels = { running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
+const activityStatusLabels = { pending: '等待中', running: '执行中', awaiting_input: '等待操作', completed: '已完成', failed: '失败', cancelled: '已取消', skipped: '已跳过' } as const
 
 export function RunStatus({ runId }: { runId: string }) {
   const run = useRun(runId)
   if (!run) return null
-  return <div className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong></div>
+  const duration = run.startedAt ? getDuration(run.startedAt, run.endedAt) : undefined
+  return <div className="ac-run-status" data-state={run.status} role="status" aria-live="polite"><span className="ac-status-dot" aria-hidden="true" /><strong>{statusLabels[run.status]}</strong>{run.attempt > 1 ? <span>第 {run.attempt} 次尝试</span> : null}{duration ? <span>耗时 {duration}</span> : null}</div>
 }
 
-function ActivityRow({ activityId }: { activityId: string }) {
+function ActivityRow({ activityId, depth = 0 }: { activityId: string; depth?: number }) {
   const activity = useActivity(activityId)
+  const childIds = useChildActivityIds(activityId)
   const tool = useToolCall(activity?.toolCallId ?? '')
+  const [expanded, setExpanded] = useState(activity?.status === 'running' || activity?.status === 'failed')
   if (!activity) return null
-  return <li className="ac-activity" data-kind={activity.kind} data-state={activity.status}>
-    <span className="ac-activity-marker" aria-hidden="true" />
-    <div className="ac-activity-body">
-      {tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <div className="ac-activity-title">{activity.text ?? activity.kind}</div>}
-    </div>
+  const duration = activity.startedAt ? getDuration(activity.startedAt, activity.endedAt) : undefined
+  const content = tool ? <RegisteredTool tool={tool} activity={activity} mode="compact" /> : <><div className="ac-activity-title">{activity.text ?? activity.kind}</div><small className="ac-activity-meta">{activityStatusLabels[activity.status]}{duration ? ` · ${duration}` : ''}</small></>
+  const artifactLinks = <ActivityArtifactLinks activityId={activity.id} />
+  if (activity.kind === 'subagent') return <li className="ac-activity ac-subagent" id={`ac-activity-${activity.id}`} data-kind={activity.kind} data-state={activity.status} data-depth={depth}>
+    <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+      <summary><span className="ac-activity-marker" aria-hidden="true" /><span><strong>{activity.text ?? 'Subagent'}</strong><small>{activityStatusLabels[activity.status]} · {childIds.length} 个子活动</small></span></summary>
+      {artifactLinks}{childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : <div className="ac-subagent-empty">暂无子活动</div>}
+    </details>
   </li>
+  return <li className="ac-activity" id={`ac-activity-${activity.id}`} data-kind={activity.kind} data-state={activity.status} data-depth={depth}><span className="ac-activity-marker" aria-hidden="true" /><div className="ac-activity-body">{content}{artifactLinks}
+    {childIds.length > 0 ? <ol className="ac-activity-children">{childIds.map((id) => <ActivityRow activityId={id} depth={depth + 1} key={id} />)}</ol> : null}</div>
+  </li>
+}
+
+function ActivityArtifactLinks({ activityId }: { activityId: string }) {
+  const artifacts = useActivityArtifacts(activityId)
+  if (artifacts.length === 0) return null
+  return <ul className="ac-activity-artifacts" aria-label="此活动生成的产物">{artifacts.map((artifact) => <li key={artifact.id}><a href={`#ac-artifact-${artifact.id}`}>{artifact.name} · v{artifact.version}</a></li>)}</ul>
 }
 
 function RegisteredTool({ tool, activity, mode }: ToolRendererProps) {
@@ -53,9 +70,16 @@ function DataBlock({ label, value, copyable = false }: { label: string; value: u
 }
 
 export function ActivityTimeline({ runId }: { runId: string }) {
-  const activityIds = useRunActivityIds(runId)
+  const activityIds = useRootActivityIds(runId)
   if (activityIds.length === 0) return <div className="ac-empty">等待 Agent 开始执行…</div>
   return <ol className="ac-timeline" aria-label="运行活动">{activityIds.map((id) => <ActivityRow activityId={id} key={id} />)}</ol>
+}
+
+export function RunAttemptHistory({ runId }: { runId: string }) {
+  const state = useRuntimeSelector((snapshot) => snapshot.state)
+  const attempts = selectRunAttemptHistory(state, runId)
+  if (attempts.length <= 1) return null
+  return <section className="ac-attempts" aria-label="运行尝试历史"><strong>尝试历史</strong><ol>{attempts.map((run) => <li key={run.id} data-current={run.id === runId ? 'true' : undefined}><span>第 {run.attempt} 次</span><small>{statusLabels[run.status]}</small></li>)}</ol></section>
 }
 
 export function RunResult({ runId, mode = 'full' }: { runId: string; mode?: RendererMode }) {
@@ -85,7 +109,23 @@ export function ArtifactCard({ artifactId, mode = 'full' }: { artifactId: string
 }
 
 export function ArtifactFallback({ artifact }: ArtifactRendererProps) {
-  return <article className="ac-artifact" data-kind={artifact.kind} data-state={artifact.status}><strong>{artifact.name}</strong><span>{artifact.kind} · {artifact.status}</span>{artifact.uri ? <code>{artifact.uri}</code> : null}</article>
+  const history = useArtifactVersionHistory(artifact.id)
+  const registry = useRendererRegistry()
+  const rendererVersion = useRendererVersion()
+  const Preview = registry.resolveArtifactPreview(artifact.kind)
+  const source = artifact.provenance.label ?? (artifact.provenance.type === 'tool' ? '工具生成' : artifact.provenance.type === 'user' ? '用户提供' : artifact.provenance.type === 'external' ? '外部来源' : 'Agent 生成')
+  return <article className="ac-artifact" id={`ac-artifact-${artifact.id}`} data-kind={artifact.kind} data-state={artifact.status}><header><strong>{artifact.name}</strong><span>{artifactStatusLabels[artifact.status]}</span></header><div className="ac-artifact-meta"><span>{artifact.kind}</span><span>版本 v{artifact.version}</span><span>{source}</span>{artifact.sizeBytes !== undefined ? <span>{formatBytes(artifact.sizeBytes)}</span> : null}</div>{history.length > 1 ? <ol className="ac-artifact-versions" aria-label="产物版本">{history.map((version) => <li key={version.id} data-current={version.id === artifact.id ? 'true' : undefined}>v{version.version} · {artifactStatusLabels[version.status]}</li>)}</ol> : null}{artifact.provenance.activityId ? <a className="ac-artifact-source" href={`#ac-activity-${artifact.provenance.activityId}`}>查看来源步骤</a> : null}{artifact.status === 'failed' && artifact.error ? <p className="ac-artifact-error" role="status">{artifact.error.message}</p> : null}{artifact.expiresAt ? <small>有效期至 {artifact.expiresAt}</small> : null}{artifact.checksum ? <small>{artifact.checksum.algorithm}: {artifact.checksum.value}</small> : null}{artifact.uri ? <code>{artifact.uri}</code> : null}{Preview && artifact.status === 'available' ? <ArtifactPreviewSlot key={`${artifact.id}:${rendererVersion}`} artifact={artifact} mode="panel" Preview={Preview} /> : null}</article>
+}
+
+function ArtifactPreviewSlot({ artifact, mode, Preview }: ArtifactPreviewRendererProps & { Preview: ArtifactPreviewRenderer }) {
+  const [open, setOpen] = useState(false)
+  return <details className="ac-artifact-preview" onToggle={(event) => setOpen(event.currentTarget.open)}><summary>预览产物</summary>{open ? <RendererErrorBoundary fallback={<Notice tone="error">预览组件加载失败。</Notice>}><Preview artifact={artifact} mode={mode} /></RendererErrorBoundary> : null}</details>
+}
+
+export function SandboxedArtifactFrame({ artifact, allowUri, title }: { artifact: Artifact; allowUri(uri: string, artifact: Artifact): boolean; title?: string }) {
+  const uri = artifact.uri
+  if (!uri || !isSafeHttpUri(uri) || !allowUri(uri, artifact)) return <Notice tone="warning">此产物未通过宿主预览策略。</Notice>
+  return <iframe className="ac-artifact-frame" src={uri} title={title ?? `${artifact.name} 预览`} sandbox="" referrerPolicy="no-referrer" loading="lazy" />
 }
 
 export function MessageView({ messageId, mode = 'full' }: { messageId: string; mode?: RendererMode }) {
@@ -125,26 +165,85 @@ export function TaskPanel({ runId }: { runId: string }) {
 }
 
 export function ArtifactPanel({ runId }: { runId: string }) {
-  const artifactMap = useRuntimeSelector((snapshot) => snapshot.state.artifacts)
-  const artifactIds = Object.values(artifactMap).filter((artifact) => artifact.runId === runId).map((artifact) => artifact.id)
-  if (artifactIds.length === 0) return null
-  return <section className="ac-panel ac-artifact-panel" aria-labelledby={`artifacts-${runId}`}><h3 id={`artifacts-${runId}`}>产物</h3>{artifactIds.map((id) => <ArtifactCard key={id} artifactId={id} mode="compact" />)}</section>
+  const artifacts = useRunArtifacts(runId)
+  if (artifacts.length === 0) return null
+  return <section className="ac-panel ac-artifact-panel" aria-labelledby={`artifacts-${runId}`}><h3 id={`artifacts-${runId}`}>产物</h3>{artifacts.map((artifact) => <ArtifactCard key={artifact.id} artifactId={artifact.id} mode="compact" />)}</section>
 }
 
-export function InterventionPanel({ runId, onRespond }: { runId: string; onRespond(interventionId: string, response: unknown): Promise<void> }) {
+export type InterventionResponder = (interventionId: string, response: unknown, idempotencyKey: string) => Promise<void>
+
+export function InterventionPanel({ runId, onRespond }: { runId: string; onRespond?: InterventionResponder }) {
   const interventionMap = useRuntimeSelector((snapshot) => snapshot.state.interventions)
-  const interventions = Object.values(interventionMap).filter((item) => item.runId === runId && item.status === 'pending')
+  const interventions = Object.values(interventionMap).filter((item) => item.runId === runId).sort((left, right) => left.requestedAt.localeCompare(right.requestedAt) || left.id.localeCompare(right.id))
   if (interventions.length === 0) return null
-  return <section className="ac-interventions" aria-label="需要操作">{interventions.map((item) => <InterventionCard key={item.id} intervention={item} onRespond={onRespond} />)}</section>
+  return <section className="ac-interventions" aria-label="人工介入">{interventions.map((item) => <InterventionCard key={item.id} intervention={item} {...(onRespond ? { onRespond } : {})} />)}</section>
 }
 
-function InterventionCard({ intervention, onRespond }: { intervention: { id: string; kind: string; prompt: string }; onRespond(id: string, response: unknown): Promise<void> }) {
+let fallbackIdempotencySequence = 0
+const nextIdempotencyKey = (interventionId: string): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  fallbackIdempotencySequence += 1
+  return `${interventionId}:${Date.now()}:${fallbackIdempotencySequence}`
+}
+
+function InterventionCard({ intervention, onRespond }: { intervention: Intervention; onRespond?: InterventionResponder }) {
   const [value, setValue] = useState('')
-  const [pending, setPending] = useState(false)
+  const [formValues, setFormValues] = useState<Record<string, string | boolean>>({})
+  const [localPending, setLocalPending] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [localError, setLocalError] = useState<string>()
+  const submission = useRef<{ fingerprint: string; key: string } | undefined>(undefined)
+  const command = useCommandState(`respond:${intervention.id}`)
   const inputId = useId()
-  const respond = async (response: unknown) => { setPending(true); try { await onRespond(intervention.id, response) } finally { setPending(false) } }
-  if (intervention.kind === 'confirm' || intervention.kind === 'approval') return <article className="ac-intervention"><p>{intervention.prompt}</p><div><button type="button" disabled={pending} onClick={() => void respond(true)}>确认</button><button type="button" className="ac-secondary" disabled={pending} onClick={() => void respond(false)}>拒绝</button></div></article>
-  return <form className="ac-intervention" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void respond(value.trim()) }}><label htmlFor={inputId}>{intervention.prompt}</label><div><input id={inputId} value={value} onChange={(event) => setValue(event.target.value)} disabled={pending} /><button type="submit" disabled={pending || !value.trim()}>提交</button></div></form>
+  const pending = localPending || command.status === 'pending'
+  const accepted = submitted || command.status === 'succeeded'
+  const error = localError ?? (command.status === 'failed' ? command.error : undefined)
+  const respond = async (response: unknown) => {
+    if (!onRespond) return
+    const fingerprint = stringify(response)
+    if (!submission.current || submission.current.fingerprint !== fingerprint) submission.current = { fingerprint, key: nextIdempotencyKey(intervention.id) }
+    setLocalPending(true)
+    setLocalError(undefined)
+    try {
+      await onRespond(intervention.id, response, submission.current.key)
+      setSubmitted(true)
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setLocalPending(false)
+    }
+  }
+  const meta = <><header><strong>{intervention.prompt}</strong><span>{intervention.status === 'pending' ? '等待操作' : intervention.status === 'resolved' ? '已处理' : '已过期'}</span></header>{intervention.description ? <p>{intervention.description}</p> : null}{intervention.risk ? <p><b>风险：</b>{intervention.risk}</p> : null}{intervention.impact ? <p><b>影响：</b>{intervention.impact}</p> : null}{intervention.expiresAt ? <small>有效期至 {intervention.expiresAt}</small> : null}</>
+  if (intervention.status !== 'pending') return <article className="ac-intervention" data-state={intervention.status}>{meta}</article>
+  if (!onRespond) return <article className="ac-intervention" data-state="pending">{meta}<p className="ac-intervention-feedback" role="status">当前 Runtime 不支持响应此请求。</p></article>
+  const feedback = <>{pending ? <p className="ac-intervention-feedback" role="status">正在提交…</p> : null}{accepted ? <p className="ac-intervention-feedback" role="status">响应已接收，等待 Agent 更新状态。</p> : null}{error ? <p className="ac-intervention-error" role="alert">提交失败：{error}，您可以重试。</p> : null}</>
+  if (intervention.kind === 'confirm' || intervention.kind === 'approval') {
+    const positive = intervention.kind === 'approval' ? 'approved' : true
+    const negative = intervention.kind === 'approval' ? 'rejected' : false
+    return <article className="ac-intervention" data-state="pending">{meta}<div className="ac-intervention-actions"><button type="button" disabled={pending || accepted} onClick={() => void respond(positive)}>{intervention.kind === 'approval' ? '批准' : '确认'}</button><button type="button" className="ac-secondary" disabled={pending || accepted} onClick={() => void respond(negative)}>{intervention.kind === 'approval' ? '拒绝' : '取消'}</button></div>{feedback}</article>
+  }
+  if (intervention.kind === 'choice') return <form className="ac-intervention" data-state="pending" onSubmit={(event) => { event.preventDefault(); if (value) void respond(value) }}>{meta}<fieldset disabled={pending || accepted}><legend>请选择一项</legend>{intervention.options?.map((option) => <label className="ac-choice" key={option.value}><input type="radio" name={inputId} value={option.value} checked={value === option.value} onChange={(event) => setValue(event.target.value)} /><span><strong>{option.label}</strong>{option.description ? <small>{option.description}</small> : null}</span></label>)}</fieldset><button type="submit" disabled={pending || accepted || !value}>提交选择</button>{feedback}</form>
+  if (intervention.kind === 'form') {
+    const missingRequired = intervention.fields?.some((field) => field.required && !formValues[field.name]) ?? true
+    const submitForm = () => {
+      const response = Object.fromEntries((intervention.fields ?? []).map((field) => [field.name, normalizeFieldValue(field, formValues[field.name])]))
+      void respond(response)
+    }
+    return <form className="ac-intervention" data-state="pending" onSubmit={(event) => { event.preventDefault(); if (!missingRequired) submitForm() }}>{meta}<div className="ac-intervention-fields">{intervention.fields?.map((field) => <InterventionFieldInput key={field.name} field={field} value={formValues[field.name]} disabled={pending || accepted} onChange={(next) => setFormValues((current) => ({ ...current, [field.name]: next }))} />)}</div><button type="submit" disabled={pending || accepted || missingRequired}>提交表单</button>{feedback}</form>
+  }
+  return <form className="ac-intervention" data-state="pending" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void respond(value.trim()) }}>{meta}<label htmlFor={inputId}>您的回复</label><div className="ac-intervention-actions"><textarea id={inputId} value={value} onChange={(event) => setValue(event.target.value)} disabled={pending || accepted} /><button type="submit" disabled={pending || accepted || !value.trim()}>提交</button></div>{feedback}</form>
+}
+
+function normalizeFieldValue(field: InterventionField, value: string | boolean | undefined): string | number | boolean {
+  if (field.type === 'checkbox') return value === true
+  if (field.type === 'number') return Number(value)
+  return typeof value === 'string' ? value : ''
+}
+
+function InterventionFieldInput({ field, value, disabled, onChange }: { field: InterventionField; value: string | boolean | undefined; disabled: boolean; onChange(value: string | boolean): void }) {
+  const id = useId()
+  if (field.type === 'checkbox') return <label className="ac-checkbox" htmlFor={id}><input id={id} type="checkbox" checked={value === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />{field.label}</label>
+  return <label htmlFor={id}><span>{field.label}{field.required ? ' *' : ''}</span>{field.type === 'textarea' ? <textarea id={id} value={typeof value === 'string' ? value : ''} placeholder={field.placeholder} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)} /> : field.type === 'select' ? <select id={id} value={typeof value === 'string' ? value : ''} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)}><option value="">请选择</option>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input id={id} type={field.type} value={typeof value === 'string' ? value : ''} placeholder={field.placeholder} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)} />}</label>
 }
 
 export type NoticeTone = 'info' | 'warning' | 'error' | 'success'
@@ -202,24 +301,66 @@ export interface AgenticChatProps {
   runId?: string
   onSend(message: string): Promise<void>
   onCancel?(runId: string): Promise<void>
-  onRespond?(interventionId: string, response: unknown): Promise<void>
+  onRetry?(runId: string): Promise<void>
+  onResume?(runId: string): Promise<void>
+  onRespond?: InterventionResponder
   theme?: 'system' | 'light' | 'dark'
   className?: string
+  /** Experimental opt-in inspector. Runtime collection must also be enabled explicitly. */
+  experimentalInspector?: { revealDiagnosticMessages?: boolean }
 }
 
-export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRespond, theme = 'system', className }: AgenticChatProps) {
+export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onResume, onRespond, theme = 'system', className, experimentalInspector }: AgenticChatProps) {
   const rootClassName = ['ac-root', className].filter(Boolean).join(' ')
-  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRespond ? { onRespond } : {})} /></AgenticChatProvider>
+  return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onResume ? { onResume } : {})} {...(onRespond ? { onRespond } : {})} {...(experimentalInspector ? { experimentalInspector } : {})} /></AgenticChatProvider>
 }
 
-function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRespond }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
+function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCancel, onRetry, onResume, onRespond, experimentalInspector }: Omit<AgenticChatProps, 'renderers' | 'serverSnapshot' | 'className'> & { rootClassName: string; theme: NonNullable<AgenticChatProps['theme']> }) {
   const run = useRun(runId ?? '')
   const running = !!run && ['queued', 'running', 'awaiting_input', 'paused'].includes(run.status)
+  const responder = onRespond ?? (runtime.capabilities.intervention ? runtime.respondToIntervention : undefined)
   return <div className={rootClassName} data-theme={theme}>
     <ConnectionNotice />
-    {runId ? <><RunStatus runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} />{onRespond ? <InterventionPanel runId={runId} onRespond={onRespond} /> : null}{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
+    {experimentalInspector ? <ExperimentalRuntimeInspector {...(runId ? { runId } : {})} {...(experimentalInspector.revealDiagnosticMessages !== undefined ? { revealDiagnosticMessages: experimentalInspector.revealDiagnosticMessages } : {})} /> : null}
+    {runId ? <><RunStatus runId={runId} /><RunAttemptHistory runId={runId} /><ActivityTimeline runId={runId} /><RunResult runId={runId} /><TaskPanel runId={runId} /><ArtifactPanel runId={runId} /><InterventionPanel runId={runId} {...(responder ? { onRespond: responder } : {})} />{onCancel && runtime.capabilities.cancel ? <CancelButton runId={runId} onCancel={onCancel} /> : null}{onRetry && runtime.capabilities.retry ? <RetryButton runId={runId} onRetry={onRetry} /> : null}{onResume && runtime.capabilities.resume ? <ResumeButton runId={runId} onResume={onResume} /> : null}</> : <EmptyState title="开始一个新的 Agent 任务" />}
     <Composer onSend={onSend} running={running} />
   </div>
+}
+
+export function ExperimentalRuntimeInspector({ runId, revealDiagnosticMessages = false }: { runId?: string; revealDiagnosticMessages?: boolean }) {
+  const id = useId()
+  const connectionHeadingId = `${id}-connection`
+  const eventsHeadingId = `${id}-events`
+  const diagnosticsHeadingId = `${id}-diagnostics`
+  const snapshot = useRuntimeSelector((value) => value)
+  const inspection = snapshot.experimentalInspection
+  if (!inspection) return <Notice tone="warning" title="Inspector 未启用">创建 Runtime 时传入 experimentalInspection 才会采集有界事件元数据。</Notice>
+  const events = runId ? inspection.events.filter((item) => item.runId === runId) : inspection.events
+  const domainDiagnostics = runId ? snapshot.state.diagnostics.filter((item) => item.runId === runId) : snapshot.state.diagnostics
+  const runtimeDiagnostics = runId ? snapshot.diagnostics.filter((item) => !item.runId || item.runId === runId) : snapshot.diagnostics
+  const diagnosticCount = domainDiagnostics.length + runtimeDiagnostics.length
+  return <aside className="ac-inspector" aria-label="Runtime Inspector">
+    <details><summary><strong>Runtime Inspector</strong><span>{events.length} 个事件 · {diagnosticCount} 条诊断</span></summary>
+      <section aria-labelledby={connectionHeadingId}><h3 id={connectionHeadingId}>连接</h3><p><strong>{snapshot.connection.status}</strong> · 第 {snapshot.connection.attempt} 次尝试</p>{inspection.connections.length ? <ol className="ac-inspector-connections">{inspection.connections.map((item, index) => <li key={`${item.status}:${item.attempt}:${index}`}>{item.status} · {item.attempt}</li>)}</ol> : null}</section>
+      <section aria-labelledby={eventsHeadingId}><h3 id={eventsHeadingId}>事件 envelope</h3>{events.length ? <div className="ac-inspector-table-wrap"><table><thead><tr><th scope="col">序号</th><th scope="col">类型</th><th scope="col">Run</th><th scope="col">结果</th></tr></thead><tbody>{events.map((item, index) => <tr key={`${item.eventId}:${index}`}><td>{item.sequence}</td><td><code>{item.type}</code></td><td><code>{item.runId}</code></td><td data-outcome={item.outcome}>{item.outcome}</td></tr>)}</tbody></table></div> : <p>暂无事件。</p>}</section>
+      <section aria-labelledby={diagnosticsHeadingId}><h3 id={diagnosticsHeadingId}>诊断</h3>{diagnosticCount ? <ul className="ac-inspector-diagnostics">{domainDiagnostics.map((item, index) => <li key={`domain:${item.eventId}:${index}`}><code>core/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}{runtimeDiagnostics.map((item, index) => <li key={`runtime:${item.source}:${item.code}:${index}`}><code>{item.source}/{item.code}</code>{revealDiagnosticMessages ? <span>{item.message}</span> : <span>详细信息已隐藏</span>}</li>)}</ul> : <p>暂无诊断。</p>}</section>
+      <p className="ac-inspector-privacy">仅保留事件 envelope 与连接状态；不采集事件 payload、连接错误文本、消息正文或工具参数。</p>
+    </details>
+  </aside>
+}
+
+function ResumeButton({ runId, onResume }: { runId: string; onResume(runId: string): Promise<void> }) {
+  const run = useRun(runId)
+  const state = useCommandState(`resume:${runId}`)
+  if (!run || run.status !== 'paused') return null
+  return <button className="ac-resume" type="button" disabled={state.status === 'pending'} onClick={() => void onResume(runId)}>{state.status === 'pending' ? '正在恢复…' : '恢复运行'}</button>
+}
+
+function RetryButton({ runId, onRetry }: { runId: string; onRetry(runId: string): Promise<void> }) {
+  const run = useRun(runId)
+  const state = useCommandState(`retry:${runId}`)
+  if (!run || !['failed', 'cancelled'].includes(run.status)) return null
+  return <button className="ac-retry" type="button" disabled={state.status === 'pending'} onClick={() => void onRetry(runId)}>{state.status === 'pending' ? '正在重试…' : '重试'}</button>
 }
 
 function CancelButton({ runId, onCancel }: { runId: string; onCancel(runId: string): Promise<void> }) {
@@ -230,6 +371,18 @@ function CancelButton({ runId, onCancel }: { runId: string; onCancel(runId: stri
 }
 
 const stringify = (value: unknown): string => typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+
+const artifactStatusLabels = { generating: '生成中', available: '可用', failed: '生成失败', expired: '已过期' } as const
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function isSafeHttpUri(value: string): boolean {
+  try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
+}
 
 export class ErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode; onError?(error: Error): void }, { failed: boolean }> {
   state = { failed: false }

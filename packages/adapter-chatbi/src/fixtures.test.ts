@@ -1,5 +1,5 @@
 import { createInitialState, replayEvents, type CanonicalEvent } from '@agentic-chat/core'
-import { checkRunConformance, rawChatBiCancelledRun, rawChatBiFailedRun, rawChatBiSuccessfulRun, type RawChatBiEvent } from '@agentic-chat/testkit'
+import { checkAdapterConformance, checkSnapshotReplayConformance, rawChatBiCancelledRun, rawChatBiFailedRun, rawChatBiSuccessfulRun, type RawChatBiEvent } from '@agentic-chat/testkit'
 import { describe, expect, it } from 'vitest'
 import { adaptChatBiEvent, type ChatBiRunEvent } from './index.js'
 
@@ -17,7 +17,7 @@ describe('ChatBI fixture conformance', () => {
   ] as const)('replays %s deterministically', (_name, rawEvents, expected) => {
     const canonical = adapt(rawEvents)
     const state = replayEvents(canonical, createInitialState())
-    expect(checkRunConformance(canonical).issues).toEqual([])
+    expect(checkAdapterConformance(canonical, { expectedStatus: expected, sequence: 'strict-per-run' }).issues).toEqual([])
     expect(state.runs[canonical[0]!.runId]?.status).toBe(expected)
     expect(state.streams[canonical[0]!.runId]?.blocked).toBe(false)
   })
@@ -28,5 +28,6 @@ describe('ChatBI fixture conformance', () => {
     const resumed = replayEvents(canonical.slice(2), disconnected)
     expect(resumed.runs['run-success']?.status).toBe('completed')
     expect(resumed.runs['run-success']?.activityIds).toHaveLength(1)
+    expect(checkSnapshotReplayConformance(canonical, 2).issues).toEqual([])
   })
 })

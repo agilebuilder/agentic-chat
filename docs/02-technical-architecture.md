@@ -177,6 +177,7 @@ interface AgentRun {
   startedAt?: string
   endedAt?: string
   attempt: number
+  retryOfRunId?: string
   error?: AgentError
   extensions?: Extensions
 }
@@ -231,14 +232,17 @@ Normalized store 可避免每个流式 token 复制整棵嵌套树，并便于�
 P0 必须通过 ADR 固化以下关系，避免同一内容在 Message、Activity 和 Artifact 中各自维护一份状态：
 
 - Thread 是 Message 和 Run 的会话容器；
-- Run 表示一次执行，retry 默认产生同一目标下的新 attempt，是否创建新 Run 由协议 ADR 明确；
+- Run 表示一次执行；P3 起每次业务 retry 创建新 Run，首个 Run 使用 `attempt = 1`，后续 Run 通过 `retryOfRunId` 指向直接前序并将 attempt 加一，终态 Run 永不复活；
 - Activity 表示执行过程节点，父子关系只由 `parentId` 表达，展示顺序不由 timestamp 推断；
+- `rootActivityIdsByRunId` 与 `childActivityIdsByParentId` 是运行时派生索引，不进入 snapshot wire schema；导入 snapshot 时按 Activity.order 重建；
 - ToolCall 是工具执行的事实源，tool Activity 只引用 `toolCallId`，不复制工具状态；
 - Task 表示计划，不等同于 Activity；二者只能通过显式关联 ID 建立关系；
-- Artifact 是独立可交付实体，通过来源引用关联 Run/Activity；Message 只引用 Artifact；
+- Artifact 是独立可交付实体；每个版本使用独立 ID，通过同 Run 的 `previousArtifactId` 形成连续不可变版本链，并用显式 provenance 关联 Activity/ToolCall；Message 只引用 Artifact；
 - 最终回答以 Message 为可见内容事实源，Activity 可以引用它，但不得复制正文。
 
 具体基数、删除策略、attempt 语义和分支运行关系必须在实现 reducer 前由 fixtures 验证并记录，不允许由 UI 组件临时推断。
+
+Artifact 的 canonical 生命周期为 `generating -> available | failed` 和 `available -> expired`。`expiresAt` 不读取客户端时钟自动转态，权威来源必须发送过期事件。Artifact URI 是不可信元数据而非访问授权；默认 UI 不打开或执行 URI，主动预览必须由宿主注册独立 preview renderer 并执行 URI 白名单、鉴权和 sandbox 策略。详见 [ADR-0009](adr/0009-artifact-version-provenance-and-preview.md)。
 
 ## 5. 事件模型与状态重建
 
@@ -278,6 +282,10 @@ interface EventEnvelope<TType extends string, TData> {
 
 Snapshot 使用独立、带版本的 `CanonicalSnapshot` schema，不直接序列化内部 store 或状态库结构。内部 normalized state 可以重构而不改变持久化格式。
 
+P3 起 `CanonicalSnapshot` 使用 0.2 wire schema：实体以显式数组持久化，result 使用带 `runId` 的记录，stream 只保存 `runId + lastSequence` checkpoint。`activityByToolCallId`、`seenEventIds`、blocked 状态和 diagnostic 都是可重建或临时运行数据，不进入持久化格式。导入 checkpoint 后，`lastSequence` 同时成为 compaction watermark；后续事件必须从下一 canonical sequence 继续。
+
+本地只能从不存在 sequence gap 的状态创建权威 snapshot。恢复旧 Alpha 数据时可以只读导入 0.1 snapshot，但所有新 snapshot 都写为 0.2。
+
 ### 5.3 Cursor、sequence 与 revision
 
 三种概念必须分离：
@@ -285,6 +293,8 @@ Snapshot 使用独立、带版本的 `CanonicalSnapshot` schema，不直接序�
 - transport cursor：用于重连和向服务端请求续传；
 - canonical sequence：用于诊断某个明确作用域内的事件顺序；
 - entity/snapshot revision：用于判断 patch 或 snapshot 的基线。
+
+Task collection 使用每 Run 单调 revision。`tasks.snapshot` 必须高于当前 revision，并权威替换该 Run 的完整任务集合；`task.patched` 必须满足 `baseRevision === currentRevision` 且 `revision === currentRevision + 1`。revision 不连续、跨 Run ID 冲突、缺失 parent 或 parent cycle 都产生 diagnostic，且不得部分修改任务集合。
 
 Adapter 必须声明 sequence 作用域。Timestamp 只用于展示，不作为事件排序依据。首版对无法安全应用的 gap/out-of-order 事件应暂停对应 stream、产生 typed diagnostic 并请求 replay/snapshot；不得静默按到达顺序修补权威状态。没有顺序保证的协议只能声明降级能力。
 
@@ -308,7 +318,7 @@ interface AgentCommands {
   send(input: UserInput): Promise<CommandReceipt>
   cancelRun(runId: string): Promise<void>
   retryRun(runId: string): Promise<CommandReceipt>
-  respond(interventionId: string, value: unknown): Promise<void>
+  respond(interventionId: string, value: unknown, idempotencyKey: string): Promise<void>
   loadHistory(cursor?: string): Promise<void>
   resumeRun?(runId: string): Promise<void>
 }
@@ -321,6 +331,8 @@ Adapter 通过 capability declaration 表明支持项。UI 根据 capability 显
 职责边界如下：Adapter 负责协议语义转换，Transport/client 负责连接和 API 调用，Runtime 负责命令 pending/receipt/diagnostic，Host 负责鉴权和业务权限。Adapter 不应逐步吸收路由、凭据、文件存储或业务状态。
 
 前端 idempotency key 只提供关联手段；只有后端持久化并执行去重时，才能宣称端到端幂等。ChatBI CreateRun 已在 P2 按 ADR-0004 实现持久化去重、请求指纹冲突检测和并发创建保护。
+
+Intervention 的 durable 状态为 `pending | resolved | expired`；`submitting` 是 Runtime command state，不写入 snapshot。Runtime 对同一个 Intervention 的相同 idempotency key 合并并发/重复提交，成功后在 canonical resolved/expired 事件到达前阻止不同响应覆盖；命令失败会保留错误并允许使用同一 key 重提。后端仍必须持久化该 key 才能提供跨刷新、跨进程的端到端 exactly-once 效果。Run 的 `awaiting_input/paused/running` 继续由显式 Run 事件驱动，详见 ADR-0002 与 ADR-0008。
 
 ## 7. Renderer 扩展体系
 

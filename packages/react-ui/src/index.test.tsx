@@ -3,7 +3,7 @@ import { createInitialState, type CanonicalEvent } from '@agentic-chat/core'
 import { AgenticChatProvider, createRendererRegistry } from '@agentic-chat/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { AgenticChat, ArtifactCard, ArtifactPanel, Composer, InterventionPanel, Markdown, MessageList, MessageView, TaskPanel, ThreadList, ToolFallback } from './index.js'
+import { AgenticChat, ArtifactCard, ArtifactPanel, Composer, ExperimentalRuntimeInspector, InterventionPanel, Markdown, MessageList, MessageView, SandboxedArtifactFrame, TaskPanel, ThreadList, ToolFallback } from './index.js'
 
 const events: CanonicalEvent[] = [
   { schemaVersion: '0.1', eventId: 'ui-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {} },
@@ -39,7 +39,7 @@ describe('React default UI', () => {
   it('renders registered message and artifact components with stable fallbacks available', () => {
     const initialState = createInitialState()
     initialState.messages.message = { id: 'message', threadId: 'thread-1', role: 'assistant', content: { kind: 'markdown', value: '# answer' }, createdAt: '2026-07-13T00:00:00Z' }
-    initialState.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available' }
+    initialState.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available', version: 1, provenance: { type: 'agent' }, createdAt: '2026-07-13T00:00:00Z' }
     const runtime = createRuntime({ initialState })
     const renderers = createRendererRegistry()
     renderers.message('markdown', ({ message }) => <p>message: {String(message.content.value)}</p>)
@@ -51,12 +51,49 @@ describe('React default UI', () => {
     expect(html).toContain('artifact: sales.csv')
   })
 
+  it('shows Artifact versions and bidirectional Activity provenance links', () => {
+    const runtime = createRuntime()
+    ;[
+      { schemaVersion: '0.1', eventId: 'a1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-15T10:00:00Z', data: {}, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a2', type: 'activity.started', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-15T10:00:01Z', data: { activityId: 'source', kind: 'workflow', title: 'Create report' }, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a3', type: 'artifact.created', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-15T10:00:02Z', data: { artifactId: 'v1', name: 'report.html', kind: 'text/html', provenance: { type: 'agent', activityId: 'source' } }, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a4', type: 'artifact.available', threadId: 'thread-1', runId: 'run-1', sequence: 4, timestamp: '2026-07-15T10:00:03Z', data: { artifactId: 'v1', sizeBytes: 2048 }, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'a5', type: 'artifact.created', threadId: 'thread-1', runId: 'run-1', sequence: 5, timestamp: '2026-07-15T10:00:04Z', data: { artifactId: 'v2', name: 'report.html', kind: 'text/html', version: 2, previousArtifactId: 'v1', provenance: { type: 'agent', activityId: 'source' } }, source: 'ui-test' },
+    ].forEach((item) => runtime.dispatch(item as CanonicalEvent))
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="run-1" onSend={async () => {}} />)
+    expect(html).toContain('版本 v2')
+    expect(html).toContain('2.0 KB')
+    expect(html).toContain('href="#ac-activity-source"')
+    expect(html).toContain('href="#ac-artifact-v1"')
+  })
+
+  it('mounts previews lazily and requires an explicit safe iframe policy', () => {
+    const state = createInitialState()
+    const artifact = { id: 'artifact', runId: 'run-1', name: 'report.html', kind: 'text/html', status: 'available' as const, version: 1, provenance: { type: 'agent' as const }, createdAt: '2026-07-15T10:00:00Z', uri: 'https://preview.example/report' }
+    state.artifacts.artifact = artifact
+    const runtime = createRuntime({ initialState: state })
+    const renderers = createRendererRegistry()
+    renderers.artifactPreview('text/html', () => <span>preview mounted</span>)
+    const card = renderToStaticMarkup(<AgenticChatProvider runtime={runtime} renderers={renderers}><ArtifactCard artifactId="artifact" /></AgenticChatProvider>)
+    expect(card).toContain('预览产物')
+    expect(card).not.toContain('preview mounted')
+
+    const rejectedScheme = renderToStaticMarkup(<SandboxedArtifactFrame artifact={{ ...artifact, uri: 'javascript:alert(1)' }} allowUri={() => true} />)
+    expect(rejectedScheme).not.toContain('<iframe')
+    const rejectedHost = renderToStaticMarkup(<SandboxedArtifactFrame artifact={artifact} allowUri={() => false} />)
+    expect(rejectedHost).not.toContain('<iframe')
+    const allowed = renderToStaticMarkup(<SandboxedArtifactFrame artifact={artifact} allowUri={() => true} />)
+    expect(allowed).toContain('<iframe')
+    expect(allowed).toContain('sandbox=""')
+    expect(allowed).toContain('referrerPolicy="no-referrer"')
+  })
+
   it('renders workspace primitives from normalized state', () => {
     const state = createInitialState()
     state.threads['thread-1'] = { id: 'thread-1', title: '季度分析', messageIds: ['message'], runIds: ['run-1'] }
     state.messages.message = { id: 'message', threadId: 'thread-1', role: 'assistant', content: { kind: 'markdown', value: '**结论**：增长' }, createdAt: '2026-07-13T00:00:00Z' }
     state.tasks.task = { id: 'task', runId: 'run-1', title: '读取数据', status: 'completed' }
-    state.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available', uri: 'https://example.com/sales.csv' }
+    state.artifacts.artifact = { id: 'artifact', runId: 'run-1', name: 'sales.csv', kind: 'text/csv', status: 'available', version: 1, provenance: { type: 'agent' }, createdAt: '2026-07-13T00:00:00Z', uri: 'https://example.com/sales.csv' }
     const runtime = createRuntime({ initialState: state })
 
     const html = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><ThreadList activeThreadId="thread-1" /><MessageList threadId="thread-1" /><TaskPanel runId="run-1" /><ArtifactPanel runId="run-1" /></AgenticChatProvider>)
@@ -88,14 +125,104 @@ describe('React default UI', () => {
 
   it('renders pending interventions and the extensible composer', () => {
     const state = createInitialState()
-    state.interventions.approval = { id: 'approval', runId: 'run-1', kind: 'approval', status: 'pending', prompt: '允许执行查询吗？' }
+    state.interventions.approval = { id: 'approval', runId: 'run-1', kind: 'approval', status: 'pending', prompt: '允许执行查询吗？', requestedAt: '2026-07-13T00:00:00Z' }
     const runtime = createRuntime({ initialState: state })
     const html = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><InterventionPanel runId="run-1" onRespond={async () => {}} /><Composer running runningStrategy="queue" leadingSlot={<span>前置</span>} trailingSlot={<span>后置</span>} onAttach={() => {}} onSend={async () => {}} /></AgenticChatProvider>)
 
     expect(html).toContain('允许执行查询吗？')
-    expect(html).toContain('确认')
+    expect(html).toContain('批准')
     expect(html).toContain('添加附件')
     expect(html).toContain('前置')
     expect(html).toContain('后置')
+  })
+
+  it('renders structured HITL controls and restored terminal states', () => {
+    const state = createInitialState()
+    state.interventions.choice = { id: 'choice', runId: 'run-1', kind: 'choice', status: 'pending', prompt: '选择格式', requestedAt: '2026-07-13T00:00:00Z', options: [{ value: 'csv', label: 'CSV' }, { value: 'pdf', label: 'PDF' }] }
+    state.interventions.form = { id: 'form', runId: 'run-1', kind: 'form', status: 'pending', prompt: '填写信息', requestedAt: '2026-07-13T00:00:01Z', fields: [{ name: 'title', label: '标题', type: 'text', required: true }, { name: 'notify', label: '通知', type: 'checkbox' }] }
+    state.interventions.resolved = { id: 'resolved', runId: 'run-1', kind: 'confirm', status: 'resolved', prompt: '已确认', requestedAt: '2026-07-13T00:00:02Z', resolvedAt: '2026-07-13T00:00:03Z', response: true }
+    state.interventions.expired = { id: 'expired', runId: 'run-1', kind: 'text', status: 'expired', prompt: '已超时', requestedAt: '2026-07-13T00:00:04Z', expiredAt: '2026-07-13T00:00:05Z' }
+    const runtime = createRuntime({ initialState: state })
+    const html = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><InterventionPanel runId="run-1" onRespond={async () => {}} /></AgenticChatProvider>)
+    expect(html).toContain('CSV')
+    expect(html).toContain('提交选择')
+    expect(html).toContain('标题 *')
+    expect(html).toContain('提交表单')
+    expect(html).toContain('data-state="resolved"')
+    expect(html).toContain('已处理')
+    expect(html).toContain('data-state="expired"')
+    expect(html).toContain('已过期')
+    const readOnly = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><InterventionPanel runId="run-1" /></AgenticChatProvider>)
+    expect(readOnly).toContain('当前 Runtime 不支持响应此请求')
+  })
+
+  it('groups parallel subagents, nests children, and shows attempt history', () => {
+    const runtime = createRuntime()
+    const dispatch = (runId: string, sequence: number, type: CanonicalEvent['type'], data: CanonicalEvent['data']) => runtime.dispatch({
+      schemaVersion: '0.1', eventId: `${runId}:${sequence}`, type, threadId: 'thread-1', runId, sequence,
+      timestamp: `2026-07-15T03:00:0${sequence}Z`, data, source: 'ui-test',
+    } as CanonicalEvent)
+    dispatch('attempt-1', 1, 'run.started', {})
+    dispatch('attempt-1', 2, 'run.failed', { error: { code: 'failed', message: 'Failed' } })
+    dispatch('attempt-2', 1, 'run.started', { attempt: 2, retryOfRunId: 'attempt-1' })
+    dispatch('attempt-2', 2, 'activity.started', { activityId: 'subagent-a', kind: 'subagent', title: 'Agent A' })
+    dispatch('attempt-2', 3, 'activity.started', { activityId: 'subagent-b', kind: 'subagent', title: 'Agent B' })
+    dispatch('attempt-2', 4, 'tool.started', { activityId: 'child-tool', toolCallId: 'child-call', name: 'shell', parentActivityId: 'subagent-a' })
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="attempt-2" onSend={async () => {}} />)
+    expect(html).toContain('尝试历史')
+    expect(html).toContain('第 2 次尝试')
+    expect(html).toContain('Agent A')
+    expect(html).toContain('Agent B')
+    expect(html).toContain('<details open="">')
+    expect(html).toContain('shell')
+  })
+
+  it('gates retry action through runtime capability', () => {
+    const runtime = createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'completed-history', cancel: false, resume: false, retry: true, intervention: false, artifacts: false },
+      commands: { retryRun: async () => ({ commandId: 'attempt-2', accepted: true }) },
+    })
+    ;[
+      { schemaVersion: '0.1', eventId: 'retry-1', type: 'run.started', threadId: 'thread-1', runId: 'attempt-1', sequence: 1, timestamp: '2026-07-15T03:00:00Z', data: {}, source: 'ui-test' },
+      { schemaVersion: '0.1', eventId: 'retry-2', type: 'run.failed', threadId: 'thread-1', runId: 'attempt-1', sequence: 2, timestamp: '2026-07-15T03:00:01Z', data: { error: { code: 'failed', message: 'Failed' } }, source: 'ui-test' },
+    ].forEach((item) => runtime.dispatch(item as CanonicalEvent))
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="attempt-1" onSend={async () => {}} onRetry={async () => {}} />)
+    expect(html).toContain('>重试</button>')
+  })
+
+  it('gates resume action to paused Runs and runtime capability', () => {
+    const runtime = createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'snapshot-and-delta', cancel: false, resume: true, retry: false, intervention: false, artifacts: false },
+      commands: { resumeRun: async () => undefined },
+    })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'resume-1', type: 'run.started', threadId: 'thread-1', runId: 'paused-run', sequence: 1, timestamp: '2026-07-15T09:00:00Z', data: {} })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'resume-2', type: 'run.status.changed', threadId: 'thread-1', runId: 'paused-run', sequence: 2, timestamp: '2026-07-15T09:00:01Z', data: { status: 'paused' } })
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="paused-run" onSend={async () => {}} onResume={async () => {}} />)
+    expect(html).toContain('>恢复运行</button>')
+  })
+
+  it('renders an opt-in payload-free Runtime Inspector and completed durations', () => {
+    const runtime = createRuntime({ experimentalInspection: { maxEvents: 10, maxConnections: 5 } })
+    runtime.setConnection({ status: 'reconnecting', attempt: 2, error: 'hidden connection secret' })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'inspect-1', type: 'run.started', threadId: 'thread-1', runId: 'inspect-run', sequence: 1, timestamp: '2026-07-15T12:00:00Z', data: {} })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'inspect-2', type: 'activity.started', threadId: 'thread-1', runId: 'inspect-run', sequence: 2, timestamp: '2026-07-15T12:00:01Z', data: { activityId: 'step', kind: 'workflow', title: 'Check diagnostics' } })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'inspect-3', type: 'activity.completed', threadId: 'thread-1', runId: 'inspect-run', sequence: 3, timestamp: '2026-07-15T12:00:03Z', data: { activityId: 'step', secret: 'event payload secret' } } as CanonicalEvent)
+    runtime.reportDiagnostic({ source: 'adapter', code: 'parse_error', message: 'diagnostic secret', runId: 'inspect-run' })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'inspect-4', type: 'run.completed', threadId: 'thread-1', runId: 'inspect-run', sequence: 4, timestamp: '2026-07-15T12:00:05Z', data: {} })
+
+    const html = renderToStaticMarkup(<AgenticChat runtime={runtime} runId="inspect-run" onSend={async () => {}} experimentalInspector={{}} />)
+    expect(html).toContain('Runtime Inspector')
+    expect(html).toContain('activity.completed')
+    expect(html).toContain('adapter/parse_error')
+    expect(html).toContain('详细信息已隐藏')
+    expect(html).toContain('耗时 5.0 s')
+    expect(html).toContain('已完成 · 2.0 s')
+    expect(html).not.toContain('event payload secret')
+    expect(html).not.toContain('connection secret')
+    expect(html).not.toContain('diagnostic secret')
+
+    const duplicated = renderToStaticMarkup(<AgenticChatProvider runtime={runtime}><ExperimentalRuntimeInspector /><ExperimentalRuntimeInspector /></AgenticChatProvider>)
+    const ids = [...duplicated.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1])
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })

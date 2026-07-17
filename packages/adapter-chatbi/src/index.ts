@@ -9,7 +9,7 @@ export const chatBiCapabilities: AdapterCapabilities = {
   resume: false,
   retry: false,
   intervention: false,
-  artifacts: true,
+  artifacts: false,
 }
 
 export type ChatBiEventType = 'run.started' | 'thinking.delta' | 'tool.started' | 'tool.finished' | 'result' | 'artifact.created' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'heartbeat'

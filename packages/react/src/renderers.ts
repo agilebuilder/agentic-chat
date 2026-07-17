@@ -21,6 +21,11 @@ export interface ArtifactRendererProps {
   mode: RendererMode
 }
 
+export interface ArtifactPreviewRendererProps {
+  artifact: Artifact
+  mode: RendererMode
+}
+
 export interface MessageRendererProps {
   message: Message
   mode: RendererMode
@@ -29,16 +34,19 @@ export interface MessageRendererProps {
 export type ToolRenderer = ComponentType<ToolRendererProps>
 export type ResultRenderer = ComponentType<ResultRendererProps>
 export type ArtifactRenderer = ComponentType<ArtifactRendererProps>
+export type ArtifactPreviewRenderer = ComponentType<ArtifactPreviewRendererProps>
 export type MessageRenderer = ComponentType<MessageRendererProps>
 
 export interface RendererRegistry {
   tool(name: string, renderer: ToolRenderer): Unsubscribe
   result(kind: string, renderer: ResultRenderer): Unsubscribe
   artifact(kind: string, renderer: ArtifactRenderer): Unsubscribe
+  artifactPreview(kind: string, renderer: ArtifactPreviewRenderer): Unsubscribe
   message(kind: string, renderer: MessageRenderer): Unsubscribe
   resolveTool(name: string): ToolRenderer | undefined
   resolveResult(kind: string): ResultRenderer | undefined
   resolveArtifact(kind: string): ArtifactRenderer | undefined
+  resolveArtifactPreview(kind: string): ArtifactPreviewRenderer | undefined
   resolveMessage(kind: string): MessageRenderer | undefined
   subscribe(listener: () => void): Unsubscribe
   getVersion(): number
@@ -48,6 +56,7 @@ export function createRendererRegistry(): RendererRegistry {
   const tools = new Map<string, ToolRenderer>()
   const results = new Map<string, ResultRenderer>()
   const artifacts = new Map<string, ArtifactRenderer>()
+  const artifactPreviews = new Map<string, ArtifactPreviewRenderer>()
   const messages = new Map<string, MessageRenderer>()
   const listeners = new Set<() => void>()
   let version = 0
@@ -71,10 +80,12 @@ export function createRendererRegistry(): RendererRegistry {
     tool: (name, renderer) => register(tools, name, renderer),
     result: (kind, renderer) => register(results, kind, renderer),
     artifact: (kind, renderer) => register(artifacts, kind, renderer),
+    artifactPreview: (kind, renderer) => register(artifactPreviews, kind, renderer),
     message: (kind, renderer) => register(messages, kind, renderer),
     resolveTool: (name) => tools.get(name) ?? tools.get('*'),
     resolveResult: (kind) => results.get(kind) ?? results.get('*'),
     resolveArtifact: (kind) => artifacts.get(kind) ?? artifacts.get('*'),
+    resolveArtifactPreview: (kind) => artifactPreviews.get(kind) ?? artifactPreviews.get('*'),
     resolveMessage: (kind) => messages.get(kind) ?? messages.get('*'),
     subscribe(listener) {
       listeners.add(listener)

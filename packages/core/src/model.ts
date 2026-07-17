@@ -41,6 +41,8 @@ export interface AgentRun {
   id: string
   threadId: string
   status: RunStatus
+  attempt: number
+  retryOfRunId?: string
   activityIds: string[]
   createdAt: string
   startedAt?: string
@@ -91,7 +93,7 @@ export interface StreamCursor {
 }
 
 export interface Diagnostic {
-  code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'unknown_event'
+  code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'revision_conflict' | 'unknown_event'
   message: string
   eventId: string
   runId: string
@@ -104,7 +106,31 @@ export interface Intervention {
   kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'
   status: 'pending' | 'resolved' | 'expired'
   prompt: string
+  description?: string
+  risk?: string
+  impact?: string
+  options?: InterventionOption[]
+  fields?: InterventionField[]
+  requestedAt: string
+  expiresAt?: string
+  resolvedAt?: string
+  expiredAt?: string
   response?: unknown
+}
+
+export interface InterventionOption {
+  value: string
+  label: string
+  description?: string
+}
+
+export interface InterventionField {
+  name: string
+  label: string
+  type: 'text' | 'textarea' | 'number' | 'select' | 'checkbox'
+  required?: boolean
+  placeholder?: string
+  options?: InterventionOption[]
 }
 
 export interface AgentTask {
@@ -113,17 +139,42 @@ export interface AgentTask {
   parentId?: string
   activityId?: string
   title: string
-  status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
+  status: TaskStatus
+}
+
+export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
+
+export type ArtifactStatus = 'generating' | 'available' | 'failed' | 'expired'
+
+export interface ArtifactProvenance {
+  type: 'agent' | 'tool' | 'user' | 'external'
+  activityId?: string
+  toolCallId?: string
+  label?: string
+}
+
+export interface ArtifactChecksum {
+  algorithm: 'sha256' | 'sha384' | 'sha512' | 'other'
+  value: string
 }
 
 export interface Artifact {
   id: string
   runId: string
-  sourceActivityId?: string
   name: string
   kind: string
-  status: 'generating' | 'available' | 'failed' | 'expired'
+  status: ArtifactStatus
+  version: number
+  previousArtifactId?: string
+  provenance: ArtifactProvenance
+  createdAt: string
+  availableAt?: string
+  endedAt?: string
   uri?: string
+  sizeBytes?: number
+  checksum?: ArtifactChecksum
+  expiresAt?: string
+  error?: AgentError
 }
 
 export interface AgenticState {
@@ -131,16 +182,19 @@ export interface AgenticState {
   messages: Record<string, Message>
   runs: Record<string, AgentRun>
   activities: Record<string, Activity>
+  rootActivityIdsByRunId: Record<string, string[]>
+  childActivityIdsByParentId: Record<string, string[]>
   toolCalls: Record<string, ToolCall>
   activityByToolCallId: Record<string, string>
   results: Record<string, RenderableContent>
   interventions: Record<string, Intervention>
   tasks: Record<string, AgentTask>
+  taskRevisionByRunId: Record<string, number>
   artifacts: Record<string, Artifact>
   streams: Record<string, StreamCursor>
   diagnostics: Diagnostic[]
 }
 
 export function createInitialState(): AgenticState {
-  return { threads: {}, messages: {}, runs: {}, activities: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, artifacts: {}, streams: {}, diagnostics: [] }
+  return { threads: {}, messages: {}, runs: {}, activities: {}, rootActivityIdsByRunId: {}, childActivityIdsByParentId: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, taskRevisionByRunId: {}, artifacts: {}, streams: {}, diagnostics: [] }
 }

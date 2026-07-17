@@ -343,17 +343,17 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 
 ### 6.4 验收标准
 
-- [ ] 三个事件源通过同一 conformance suite；
-- [ ] 同一个默认 UI 无需 fork 核心包即可切换三个 runtime；
-- [ ] 并行 Activity 不被错误串行化，父子关系可理解；
-- [ ] intervention 在刷新后仍能恢复 pending/resolved 状态；
-- [ ] 重复提交 approval 不会执行两次；
-- [ ] retry 产生新的 attempt，历史 attempt 可追溯；
-- [ ] snapshot 后 replay 增量与纯 event replay 得到等价状态；
-- [ ] adapter 遇到未知事件可降级且有 diagnostic；
-- [ ] artifact 来源、版本和状态清晰；
-- [ ] 完成无障碍、性能和安全 Beta 检查清单；
-- [ ] 公共 API 在整个 Beta 周期内除明确 experimental 部分外无重大重构需求。
+- [x] 三个事件源通过同一 conformance suite；ChatBI、AG-UI 与 AI SDK UI Message Stream fixture 均验证生命周期、ToolCall、sequence 和 snapshot replay；
+- [x] 同一个默认 UI 无需 fork 核心包即可切换三个 runtime；Runtime Switcher 浏览器测试依次播放 ChatBI、AG-UI 与 AI SDK 至 completed；
+- [x] 并行 Activity 不被错误串行化，父子关系可理解；编码 Agent fixture、层级 selector 与可折叠 subagent 默认 UI 已验证两个并行 root 及其子级 ToolCall；
+- [x] intervention 在刷新后仍能恢复 pending/resolved/expired 状态；0.2 snapshot、迁移测试、默认只读历史卡片与 HITL Storybook 已覆盖；
+- [x] 重复提交 approval 不会执行两次；Runtime 按 Intervention + idempotency key 合并，成功后锁定响应、失败后允许重提，并有单元与浏览器测试；端到端保证仍要求 Host 后端持久化 key；
+- [x] retry 产生新的 attempt，历史 attempt 可追溯；retry 创建新 Run，保留 `retryOfRunId` 链，公共 conformance、selector、默认历史视图与 capability-gated retry 操作已覆盖；
+- [x] snapshot 后 replay 增量与纯 event replay 得到等价状态；0.2 wire snapshot 与公共 conformance helper 已在 ChatBI、AG-UI、编码 Agent 行为 fixture 的中间运行状态验证；
+- [x] adapter 遇到未知事件可降级且有 diagnostic；三种 Adapter 均将未知或未建模事件降级为无 payload 的 `source.observed`，并生成脱敏 diagnostic；
+- [x] artifact 来源、版本和状态清晰；不可变版本链、显式 provenance、完整生命周期、snapshot/conformance、双向导航和拒绝默认的懒加载 sandbox 预览已覆盖；
+- [x] 完成无障碍、性能和安全 Beta 检查清单；axe/键盘/视觉状态矩阵、1,000 Activity 与 opt-in Inspector 长 Run 预算、静态安全门、payload-free Inspector 测试及 OSV lockfile workflow 已纳入自动化；人工 NVDA 抽查由外部团队并行执行、结果后补，不阻塞 P4.0 或 Beta；
+- [x] Beta 公共 API 基线已经建立并由 API Extractor/CSS contract 门保护；“整个 Beta/RC 周期无重大重构”转为 P4 持续兼容性门，不再作为一个无法在 P3 结束当天判定的单次验收项。
 
 ### 6.5 关于 Claudian 的判定
 
@@ -370,7 +370,7 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 
 将 Beta 打磨为外部团队可以审慎用于生产项目的稳定版本 D4。
 
-1.0 稳定范围优先覆盖 Run、Activity、ToolCall、Message、adapter/runtime contract。Task、Artifact、复杂 Intervention 或 subagent 若尚未经过足够真实集成，可以保留在 beta/experimental 入口，不为追求表面完整而冻结不成熟语义。
+最初规划允许 Task、Artifact、复杂 Intervention 或 subagent 在真实集成不足时保留于 beta/experimental 入口；P3 公共 API 评审确认它们已经从公开包根入口导出，因此现有根导出从 Beta 起一并受兼容性基线保护。P4 可以新增明确的 experimental 子入口，但不能把现有公开类型无迁移说明地移出或破坏。
 
 ### 7.2 工作内容
 
@@ -431,6 +431,12 @@ Alpha 对外发布前，ChatBI 必须持续使用同一公开 API；若 ChatBI �
 - [ ] 无未处理的高风险安全问题；
 - [ ] 新用户能依据文档独立完成 adapter 与自定义 renderer；
 - [ ] 版本、弃用、漏洞报告和维护范围公开明确。
+
+### 7.5 执行计划
+
+P4 按 P4.0～P4.7 八个工作包执行，依次覆盖阶段过渡、Schema/API 稳定、文档站、开源治理与发布工程、质量加固、真实宿主接入、RC 稳定期和 1.0 发布。详细依赖、产出、门禁和建议顺序见 [P4 执行计划](./21-p4-execution-plan.md)。
+
+P3 的功能与工程实现结论、自动化证据以及转入 P4 的保留项见 [P3 工程验收报告](./20-p3-acceptance-report.md)。NVDA + Edge 人工抽查已转交独立测试人员；它不阻塞 P4 工程启动，但在 1.0 `latest` 发布前必须有明确结论，发现 blocker/high 时必须回到 P4.5 修复并复验。
 
 ## 8. P5：生态扩展
 

@@ -387,7 +387,7 @@ P1 的任何新增功能必须直接服务 ChatBI 闭环或验证 canonical mode
 
 - core canonical model 和公共 API 稳定；
 - core、runtime、transport 和 adapter 不依赖 React、Vue 或 DOM，并由自动化依赖边界检查保证；
-- 完成 ChatBI、AG-UI 和另一类 Agent runtime 的真实适配；
+- 完成 ChatBI 与至少一个非 ChatBI 宿主通过公开 adapter 的真实适配；AI SDK 是当前优先公开路径，`adapter-ag-ui` 在真实 transport、版本协商和宿主验收完成前保持 private experimental，不作为 1.0 的强制公开包；
 - 支持 durable run、activity tree、工具、任务、人工介入和 artifact；
 - 同时提供 headless primitives 与生产可用默认主题；
 - React 官方实现达到 1.0；其他框架支持根据真实采用独立演进，不作为 React 1.0 的前置条件；

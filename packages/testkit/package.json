@@ -11,6 +11,6 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./package.json": "./package.json" },
   "publishConfig": { "access": "public" },
-  "dependencies": { "@agentic-chat/core": "workspace:^" },
+  "dependencies": { "@agentic-chat/core": "workspace:*" },
   "scripts": { "build": "tsc -b", "typecheck": "tsc -b --pretty false" }
 }

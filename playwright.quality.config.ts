@@ -20,11 +20,20 @@ export default defineConfig({
     locale: 'en-US',
     timezoneId: 'UTC',
   },
-  webServer: {
-    command: 'pnpm exec vite preview --outDir storybook-static --host 127.0.0.1 --port 6007 --strictPort',
-    cwd: 'apps/storybook',
-    url: 'http://127.0.0.1:6007/index.html',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  webServer: [
+    {
+      command: 'pnpm exec vite preview --outDir storybook-static --host 127.0.0.1 --port 6007 --strictPort',
+      cwd: 'apps/storybook',
+      url: 'http://127.0.0.1:6007/index.html',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: 'pnpm exec vite preview --outDir dist --host 127.0.0.1 --port 6008 --strictPort',
+      cwd: 'apps/fixture-player',
+      url: 'http://127.0.0.1:6008',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
 })

@@ -11,7 +11,7 @@ function RunStatus() {
 describe('SSR snapshot contract', () => {
   it('renders the injected server snapshot even if the client runtime has advanced', () => {
     const runtime = createRuntime()
-    runtime.hydrateRun({ id: 'run-1', threadId: 'thread-1', status: 'queued', activityIds: [], createdAt: '2026-07-14T00:00:00Z' })
+    runtime.hydrateRun({ id: 'run-1', threadId: 'thread-1', status: 'queued', attempt: 1, activityIds: [], createdAt: '2026-07-14T00:00:00Z' })
     const serverSnapshot: RuntimeSnapshot = structuredClone(runtime.getSnapshot())
     runtime.dispatch({ schemaVersion: '0.1', eventId: 'started', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-14T00:00:01Z', data: {} })
 

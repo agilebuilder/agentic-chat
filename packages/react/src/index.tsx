@@ -1,6 +1,6 @@
 import type { Activity, AgentRun, Artifact, Message, RenderableContent, ToolCall } from '@agentic-chat/core'
-import type { AgenticRuntime, RuntimeSnapshot } from '@agentic-chat/runtime'
-import { createContext, useContext, useRef, useSyncExternalStore, type PropsWithChildren } from 'react'
+import { selectArtifactsForActivity, selectArtifactVersionHistory, selectRunArtifacts, type AgenticRuntime, type RuntimeSnapshot } from '@agentic-chat/runtime'
+import { createContext, useContext, useMemo, useRef, useSyncExternalStore, type PropsWithChildren } from 'react'
 import { createRendererRegistry, type RendererRegistry } from './renderers.js'
 
 export * from './renderers.js'
@@ -63,7 +63,23 @@ export const useActivity = (activityId: string): Activity | undefined => useRunt
 export const useToolCall = (toolCallId: string): ToolCall | undefined => useRuntimeSelector((snapshot) => snapshot.state.toolCalls[toolCallId])
 export const useMessage = (messageId: string): Message | undefined => useRuntimeSelector((snapshot) => snapshot.state.messages[messageId])
 export const useArtifact = (artifactId: string): Artifact | undefined => useRuntimeSelector((snapshot) => snapshot.state.artifacts[artifactId])
+export function useRunArtifacts(runId: string): Artifact[] {
+  const state = useRuntimeSelector((snapshot) => snapshot.state)
+  return useMemo(() => selectRunArtifacts(state, runId), [state, runId])
+}
+
+export function useActivityArtifacts(activityId: string): Artifact[] {
+  const state = useRuntimeSelector((snapshot) => snapshot.state)
+  return useMemo(() => selectArtifactsForActivity(state, activityId), [state, activityId])
+}
+
+export function useArtifactVersionHistory(artifactId: string): Artifact[] {
+  const state = useRuntimeSelector((snapshot) => snapshot.state)
+  return useMemo(() => selectArtifactVersionHistory(state, artifactId), [state, artifactId])
+}
 export const useRunActivityIds = (runId: string): string[] => useRuntimeSelector((snapshot) => snapshot.state.runs[runId]?.activityIds ?? emptyIds)
+export const useRootActivityIds = (runId: string): readonly string[] => useRuntimeSelector((snapshot) => snapshot.state.rootActivityIdsByRunId[runId] ?? emptyIds)
+export const useChildActivityIds = (activityId: string): readonly string[] => useRuntimeSelector((snapshot) => snapshot.state.childActivityIdsByParentId[activityId] ?? emptyIds)
 export const useRunResult = (runId: string): RenderableContent | undefined => useRuntimeSelector((snapshot) => snapshot.state.results[runId])
 export const useConnection = () => useRuntimeSelector((snapshot) => snapshot.connection)
 export const useCommandState = (key: string) => useRuntimeSelector((snapshot) => snapshot.commands[key] ?? idleCommand)

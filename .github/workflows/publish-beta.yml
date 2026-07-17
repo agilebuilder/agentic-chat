@@ -1,0 +1,76 @@
+name: Publish npm beta
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: npm-beta
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Verify reviewed beta commit
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.13.1
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate beta versions and package boundaries
+        run: pnpm release:beta:check
+      - name: Run repository verification
+        run: pnpm verify
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run browser quality suite
+        run: pnpm quality:browser
+
+  publish:
+    name: Publish approved beta packages
+    needs: preflight
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-beta
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout reviewed commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.13.1
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: pnpm
+      - name: Install trusted-publishing npm CLI
+        run: npm install --global npm@11.18.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build reviewed package artifacts
+        run: pnpm build
+      - name: Publish with trusted publishing and provenance
+        env:
+          AGENTIC_CHAT_RELEASE_APPROVED: 'true'
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: pnpm release:beta

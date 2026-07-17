@@ -1,4 +1,4 @@
-import type { CanonicalEvent } from '@agentic-chat/core'
+import { createInitialState, createSnapshot, replayEvents, type CanonicalEvent } from '@agentic-chat/core'
 import { describe, expect, it, vi } from 'vitest'
 import { createRuntime } from './index.js'
 
@@ -54,13 +54,51 @@ describe('runtime external store contract', () => {
     expect(runtime.getSnapshot().diagnostics[0]?.code).toBe('diagnostic-5')
   })
 
+  it('captures bounded payload-free inspection metadata only when explicitly enabled', () => {
+    const disabled = createRuntime()
+    disabled.dispatch(started)
+    expect(disabled.getSnapshot().experimentalInspection).toBeUndefined()
+
+    const runtime = createRuntime({ experimentalInspection: { maxEvents: 2, maxConnections: 2 } })
+    runtime.dispatch({ ...started, data: { secret: 'must-not-be-captured' } } as CanonicalEvent)
+    runtime.dispatch(started)
+    runtime.dispatch({ ...started, eventId: 'gap', sequence: 3, data: { token: 'also-secret' } } as CanonicalEvent)
+    runtime.setConnection({ status: 'connected', attempt: 1, error: 'credential-like-error' })
+    runtime.setConnection({ status: 'reconnecting', attempt: 2, error: 'another-secret' })
+
+    const inspection = runtime.getSnapshot().experimentalInspection
+    expect(inspection?.events).toHaveLength(2)
+    expect(inspection?.events.map((item) => item.outcome)).toEqual(['ignored', 'diagnostic'])
+    expect(inspection?.connections).toEqual([{ status: 'connected', attempt: 1 }, { status: 'reconnecting', attempt: 2 }])
+    expect(JSON.stringify(inspection)).not.toContain('secret')
+    expect(inspection?.events[1]).not.toHaveProperty('data')
+  })
+
+  it('validates inspection retention limits', () => {
+    expect(() => createRuntime({ experimentalInspection: { maxEvents: 0 } })).toThrow('maxEvents')
+    expect(() => createRuntime({ experimentalInspection: { maxConnections: 1_001 } })).toThrow('maxConnections')
+  })
+
   it('hydrates a queued run without consuming its event cursor', () => {
     const runtime = createRuntime()
-    runtime.hydrateRun({ id: 'run-1', threadId: 'thread-1', status: 'queued', activityIds: [], createdAt: '2026-07-13T00:00:00Z' })
+    runtime.hydrateRun({ id: 'run-1', threadId: 'thread-1', status: 'queued', attempt: 1, activityIds: [], createdAt: '2026-07-13T00:00:00Z' })
     expect(runtime.getState().runs['run-1']?.status).toBe('queued')
     expect(runtime.getState().streams['run-1']).toBeUndefined()
     runtime.dispatch({ schemaVersion: '0.1', eventId: 'start-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:01Z', data: {} })
     expect(runtime.getState().runs['run-1']?.status).toBe('running')
+  })
+
+  it('does not hydrate a retry with a missing predecessor', () => {
+    const runtime = createRuntime()
+    expect(() => runtime.hydrateRun({ id: 'run-2', threadId: 'thread-1', status: 'queued', attempt: 2, retryOfRunId: 'missing', activityIds: [], createdAt: '2026-07-13T00:00:00Z' })).toThrow('does not exist')
+  })
+
+  it('initializes from the public canonical snapshot schema', () => {
+    const state = replayEvents([started], createInitialState())
+    const runtime = createRuntime({ initialSnapshot: createSnapshot(state, 4) })
+    expect(runtime.getState().runs['run-1']?.status).toBe('running')
+    expect(runtime.getState().streams['run-1']).toMatchObject({ lastSequence: 1, compactedThroughSequence: 1 })
+    expect(() => createRuntime({ initialState: state, initialSnapshot: createSnapshot(state, 4) })).toThrow('either initialState or initialSnapshot')
   })
 
   it('compacts replay metadata and notifies subscribers once', () => {
@@ -73,5 +111,61 @@ describe('runtime external store contract', () => {
     expect(listener).toHaveBeenCalledTimes(1)
     runtime.dispatch(started)
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('HITL command idempotency', () => {
+  const createHitlRuntime = (respond: (interventionId: string, value: unknown, idempotencyKey: string) => Promise<void>) => {
+    const runtime = createRuntime({
+      capabilities: { send: false, sequence: 'strict-per-run', replay: 'snapshot-and-delta', cancel: false, resume: false, retry: false, intervention: true, artifacts: false },
+      commands: { respond },
+    })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'h1', type: 'run.started', threadId: 't1', runId: 'r1', sequence: 1, timestamp: '2026-07-15T09:00:00Z', data: {} })
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'h2', type: 'intervention.requested', threadId: 't1', runId: 'r1', sequence: 2, timestamp: '2026-07-15T09:00:01Z', data: { interventionId: 'i1', kind: 'approval', prompt: 'Publish?' } })
+    return runtime
+  }
+
+  it('coalesces duplicate responses and allows retry after failure', async () => {
+    let calls = 0
+    let reject = true
+    const runtime = createHitlRuntime(async () => { calls += 1; if (reject) throw new Error('forbidden') })
+
+    const first = runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    const duplicate = runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    expect(first).toBe(duplicate)
+    await expect(runtime.respondToIntervention('i1', 'rejected', 'stable-key')).rejects.toThrow('different response')
+    await expect(first).rejects.toThrow('forbidden')
+    expect(calls).toBe(1)
+    expect(runtime.getSnapshot().commands['respond:i1']).toMatchObject({ status: 'failed', error: 'forbidden' })
+    await expect(runtime.respondToIntervention('i1', 'approved', 'replacement-key')).rejects.toThrow('already has a submitted response')
+    await expect(runtime.respondToIntervention('i1', 'rejected', 'stable-key')).rejects.toThrow('different response')
+
+    reject = false
+    await runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    await runtime.respondToIntervention('i1', 'approved', 'stable-key')
+    expect(calls).toBe(2)
+    await expect(runtime.respondToIntervention('i1', 'rejected', 'different-key')).rejects.toThrow('already has a submitted response')
+  })
+
+  it('fingerprints logical JSON values deterministically and rejects unsafe shapes', async () => {
+    const respond = vi.fn(async () => undefined)
+    const runtime = createHitlRuntime(respond)
+    const first = runtime.respondToIntervention('i1', { approved: true, metadata: { a: 1, b: 2 } }, 'stable-key')
+    const reordered = runtime.respondToIntervention('i1', { metadata: { b: 2, a: 1 }, approved: true }, 'stable-key')
+    expect(first).toBe(reordered)
+    await first
+    expect(respond).toHaveBeenCalledTimes(1)
+
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    const another = createHitlRuntime(async () => undefined)
+    await expect(another.respondToIntervention('i1', cyclic, 'cycle-key')).rejects.toThrow('cyclic')
+  })
+
+  it('rejects a response after canonical resolution', async () => {
+    const runtime = createHitlRuntime(async () => undefined)
+    await runtime.respondToIntervention('i1', 'approved', 'key')
+    runtime.dispatch({ schemaVersion: '0.1', eventId: 'h3', type: 'intervention.resolved', threadId: 't1', runId: 'r1', sequence: 3, timestamp: '2026-07-15T09:00:02Z', data: { interventionId: 'i1', response: 'approved' } })
+    await expect(runtime.respondToIntervention('i1', 'approved', 'key')).rejects.toThrow('not pending')
   })
 })

@@ -1,4 +1,17 @@
-import type { AgentError } from './model.js'
+import type { AgentError, ArtifactChecksum, ArtifactProvenance, InterventionField, InterventionOption, TaskStatus } from './model.js'
+
+export interface CanonicalTaskValue {
+  id: string
+  parentId?: string
+  activityId?: string
+  title: string
+  status: TaskStatus
+}
+
+export type CanonicalTaskPatch =
+  | { operation: 'upsert'; value: Omit<CanonicalTaskValue, 'id'> }
+  | { operation: 'update'; changes: { parentId?: string | null; activityId?: string | null; title?: string; status?: TaskStatus } }
+  | { operation: 'remove' }
 
 export interface EventEnvelope<TType extends string, TData> {
   schemaVersion: '0.1'
@@ -13,7 +26,7 @@ export interface EventEnvelope<TType extends string, TData> {
 }
 
 export type CanonicalEvent =
-  | EventEnvelope<'run.started', Record<string, never>>
+  | EventEnvelope<'run.started', { attempt?: number; retryOfRunId?: string }>
   | EventEnvelope<'run.status.changed', { status: 'running' | 'awaiting_input' | 'paused' }>
   | EventEnvelope<'status.delta', { activityId: string; content: string }>
   | EventEnvelope<'activity.started', { activityId: string; kind: 'workflow' | 'subagent' | 'custom'; title?: string; parentActivityId?: string }>
@@ -24,8 +37,15 @@ export type CanonicalEvent =
   | EventEnvelope<'tool.failed', { toolCallId: string; error: AgentError }>
   | EventEnvelope<'result.available', { kind: string; result: unknown }>
   | EventEnvelope<'result.delta', { delta: string }>
-  | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string }>
+  | EventEnvelope<'intervention.requested', { interventionId: string; kind: 'confirm' | 'approval' | 'choice' | 'text' | 'form'; prompt: string; activityId?: string; description?: string; risk?: string; impact?: string; options?: InterventionOption[]; fields?: InterventionField[]; expiresAt?: string }>
   | EventEnvelope<'intervention.resolved', { interventionId: string; response: unknown }>
+  | EventEnvelope<'intervention.expired', { interventionId: string }>
+  | EventEnvelope<'artifact.created', { artifactId: string; name: string; kind: string; version?: number; previousArtifactId?: string; provenance?: ArtifactProvenance }>
+  | EventEnvelope<'artifact.available', { artifactId: string; uri?: string; sizeBytes?: number; checksum?: ArtifactChecksum; expiresAt?: string }>
+  | EventEnvelope<'artifact.failed', { artifactId: string; error: AgentError }>
+  | EventEnvelope<'artifact.expired', { artifactId: string }>
+  | EventEnvelope<'tasks.snapshot', { revision: number; tasks: CanonicalTaskValue[] }>
+  | EventEnvelope<'task.patched', { baseRevision: number; revision: number; taskId: string; patch: CanonicalTaskPatch }>
   | EventEnvelope<'source.observed', { sourceType: string }>
   | EventEnvelope<'run.completed', Record<string, never>>
   | EventEnvelope<'run.failed', { error: AgentError }>

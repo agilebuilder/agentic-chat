@@ -64,6 +64,36 @@ export interface RuntimeDiagnostic {
   source: string
   code: string
   message: string
+  runId?: string
+  eventId?: string
+}
+
+export interface ExperimentalInspectedEvent {
+  eventId: string
+  type: CanonicalEvent['type']
+  threadId: string
+  runId: string
+  sequence: number
+  timestamp: string
+  source?: string
+  outcome: 'applied' | 'ignored' | 'diagnostic'
+}
+
+export interface ExperimentalInspectedConnection {
+  status: ConnectionStatus
+  attempt: number
+}
+
+export interface ExperimentalInspectionSnapshot {
+  events: ExperimentalInspectedEvent[]
+  connections: ExperimentalInspectedConnection[]
+}
+
+export interface ExperimentalInspectionOptions {
+  /** Maximum retained event envelopes. Event payloads are never captured. */
+  maxEvents?: number
+  /** Maximum retained connection transitions. Error text is never captured. */
+  maxConnections?: number
 }
 
 export const noCapabilities: AdapterCapabilities = {

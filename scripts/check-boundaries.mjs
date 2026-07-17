@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\/(.:)/, '$1')
-const protectedPackages = ['core', 'runtime', 'adapter-chatbi', 'adapter-ag-ui']
+const protectedPackages = ['core', 'runtime', 'adapter-chatbi', 'adapter-ag-ui', 'adapter-ai-sdk']
 const forbiddenImports = /from\s+['"](?:react|react-dom|vue)(?:\/[^'"]*)?['"]|import\s*\(['"](?:react|react-dom|vue)/
 const forbiddenCoreGlobals = /\b(?:window|document|localStorage)\b/
 const violations = []

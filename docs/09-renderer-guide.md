@@ -27,6 +27,26 @@ export function Chat({ runtime }) {
 
 每个注册方法返回注销函数。旧注册被新 renderer 替换后，调用旧的注销函数不会误删新注册。
 
+## Artifact 预览
+
+Artifact 卡片 renderer 与主动预览使用不同的 registry。`artifact(kind, renderer)` 负责卡片展示；`artifactPreview(kind, renderer)` 只在用户展开“预览产物”后挂载：
+
+```tsx
+import { createRendererRegistry } from '@agentic-chat/react'
+import { SandboxedArtifactFrame } from '@agentic-chat/react-ui'
+
+const renderers = createRendererRegistry()
+
+renderers.artifactPreview('text/html', ({ artifact }) => (
+  <SandboxedArtifactFrame
+    artifact={artifact}
+    allowUri={(uri) => new URL(uri).origin === 'https://artifacts.example.com'}
+  />
+))
+```
+
+注册 preview 不代表信任 URI。宿主必须在 `allowUri` 中校验租户、来源、签名和域名；后端仍需执行鉴权。`SandboxedArtifactFrame` 额外拒绝非 http/https scheme，并使用 `sandbox=""`、`referrerPolicy="no-referrer"` 和 lazy loading。需要脚本、同源权限、下载或带凭据请求时，应创建经过安全评审的宿主 renderer，而不是放宽通用默认值。
+
 ## 内容 kind
 
 Result 和 Message 内容使用：
@@ -45,6 +65,6 @@ Adapter 应产生稳定、领域明确的 kind，例如 `chatbi.query-result`，
 - 默认 fallback 不执行 raw HTML；
 - `markdown` 默认 renderer 只解析标题、列表、代码、粗体和安全链接等保守子集；原始 HTML 始终作为文本，链接只允许 `http`、`https` 和 `mailto`；
 - 默认 Artifact fallback 不打开或下载 URI；
-- URL 白名单、下载授权和 iframe sandbox 由宿主 renderer 实施；
+- URL 白名单、下载授权和 iframe sandbox 由宿主 renderer 实施；URI 字段本身不构成授权；
 - 浏览器渲染期间，自定义 renderer 异常会局部回退，不影响 Run 状态和其他 Activity；
 - renderer 只消费 view data，不应直接持有 transport、凭据或业务权限。

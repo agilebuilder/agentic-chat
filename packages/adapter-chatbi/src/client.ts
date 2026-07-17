@@ -180,7 +180,7 @@ export function createChatBiController(options: ChatBiControllerOptions): ChatBi
     runtime,
     async start(message, signal, idempotencyKey = crypto.randomUUID()) {
       const receipt = await runtime.executeCommand('send', () => runtime.commands.send!(message, idempotencyKey))
-      runtime.hydrateRun({ id: receipt.commandId, threadId: options.sessionId, status: 'queued', activityIds: [], createdAt: new Date().toISOString() })
+      runtime.hydrateRun({ id: receipt.commandId, threadId: options.sessionId, status: 'queued', attempt: 1, activityIds: [], createdAt: new Date().toISOString() })
       const completion = connect(receipt.commandId, signal)
       trackCompletion(receipt.commandId, completion)
       void completion.catch(() => undefined)

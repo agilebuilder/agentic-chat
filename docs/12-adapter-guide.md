@@ -65,6 +65,19 @@ const runtime = createRuntime({
 
 `send`、`retryRun` 和 `respond` 的幂等键必须贯穿客户端、API 和存储层。网络重试复用同一个 key，不应为每次 retry 生成新 key。
 
+业务 retry 不得重新发送旧 Run 的 `run.started`。后端应创建新 Run ID，并让新 Run 的首事件携带连续 attempt：
+
+```ts
+{
+  type: 'run.started',
+  runId: 'run-attempt-2',
+  sequence: 1,
+  data: { attempt: 2, retryOfRunId: 'run-attempt-1' },
+}
+```
+
+每个 attempt 有独立的 per-Run sequence；直接前序必须是同 Thread 的终态 Run。Adapter 可用 `checkRetryAttemptConformance([firstAttemptEvents, secondAttemptEvents])` 验证链路。HTTP retry 或 SSE 重连不是业务 attempt，不得增加 `AgentRun.attempt`。
+
 ## 顺序、重放与错误
 
 - `strict-per-run`：每个 Run 从 sequence 1 开始严格递增；缺口会阻塞后续事件，直到补齐。
@@ -75,13 +88,137 @@ const runtime = createRuntime({
 
 ## Conformance 测试
 
-公开 adapter 至少准备成功、失败和取消夹具，并用 testkit 检查：
+公开 adapter 至少准备成功、失败和取消夹具，并用同一套 testkit 检查：
 
 ```ts
-import { checkRunConformance } from '@agentic-chat/testkit'
+import { checkAdapterConformance } from '@agentic-chat/testkit'
 
-const result = checkRunConformance(events)
+const result = checkAdapterConformance(events, {
+  expectedStatus: 'completed',
+  sequence: adapter.capabilities.sequence,
+})
 if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
 ```
 
-同时覆盖重复事件、sequence gap、重连重放、未知事件、敏感字段脱敏和 capability/command 对齐。自定义 Result、Tool、Artifact 或 Message 的 UI 接入见 [Renderer 指南](09-renderer-guide.md)。
+该检查会验证单 Run/Thread、event ID、顺序、唯一终态、reducer diagnostic、未结束 ToolCall 和重复 replay 幂等性。`checkRunConformance` 暂时保留为兼容别名，新代码应使用 `checkAdapterConformance`。
+
+测试仍需在 adapter 自己的测试中覆盖源协议解析、重连、未知事件降级、敏感字段脱敏和 capability/command 对齐；这些来源特有行为不能只靠 canonical fixture 证明。自定义 Result、Tool、Artifact 或 Message 的 UI 接入见 [Renderer 指南](09-renderer-guide.md)。
+
+需要验证 snapshot 恢复的 adapter 可以选择一个 Run 中间切点：
+
+```ts
+import { checkSnapshotReplayConformance } from '@agentic-chat/testkit'
+
+const result = checkSnapshotReplayConformance(events, splitIndex)
+if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
+```
+
+该检查先 replay 前缀并创建 0.2 `CanonicalSnapshot`，再导入 snapshot、replay 后缀，最后与完整事件 replay 的持久化结果比较。切点不能位于 sequence gap 后。
+
+## Human-in-the-loop
+
+支持 HITL 的 adapter 必须同时声明 `intervention: true` 并实现 `commands.respond(interventionId, value, idempotencyKey)`。请求使用 `intervention.requested`，最终结果由后端事件明确写成 `intervention.resolved` 或 `intervention.expired`；command 成功不能由 adapter 自行伪造 resolved，Run 恢复也必须另外发送 `run.status.changed(running)`。
+
+`choice` 至少包含两个 value 唯一的 options；`form` 使用名称唯一的 fields，支持 text、textarea、number、select 和 checkbox。风险、影响、描述和 expiresAt 都是可选展示元数据。到达 expiresAt 本身不会令 reducer 读取本地时钟自动过期，权威后端必须发出 `intervention.expired`，保证 replay 确定性。
+
+```ts
+import { checkInterventionConformance } from '@agentic-chat/testkit'
+
+const result = checkInterventionConformance(events)
+if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
+```
+
+该检查验证 snapshot 中的 pending 恢复、后续 resolved/expired replay，以及同一个 Intervention 不能完成两次。Host/后端负责鉴权、权限错误和 idempotency key 的持久化；不要把前端 disabled 状态当作安全边界。
+
+## Artifact 生命周期
+
+只有在来源协议确实提供 Artifact producer 和字段契约时，adapter 才能声明 `artifacts: true`。一个可用 Artifact 至少经过创建和可用两个权威事件：
+
+```ts
+{ type: 'artifact.created', data: {
+  artifactId: 'report-v2', name: 'report.html', kind: 'text/html',
+  version: 2, previousArtifactId: 'report-v1',
+  provenance: { type: 'tool', activityId: 'render', toolCallId: 'call-render' }
+} }
+{ type: 'artifact.available', data: {
+  artifactId: 'report-v2', uri: 'https://artifacts.example.com/report-v2',
+  sizeBytes: 8192, checksum: { algorithm: 'sha256', value: '...' }
+} }
+```
+
+后续版本必须使用新 ID，version 连续递增并指向同 Run 的直接前序。生成失败发送 `artifact.failed`；已可用内容失效发送 `artifact.expired`。不要因为本地时间超过 `expiresAt` 就由 adapter 伪造过期，也不要把来源 URI 当成已授权下载地址。
+
+```ts
+import { checkArtifactConformance } from '@agentic-chat/testkit'
+
+const result = checkArtifactConformance(events)
+if (result.issues.length > 0) throw new Error(result.issues.join('\n'))
+```
+
+该检查拒绝仍在 generating 的交付结果，以及无效版本链和来源引用。来源协议只有一个含糊的 `artifact.created` 枚举、没有实际 producer 或 payload schema 时，应保持 capability 为 false，并安全降级未知事件。
+
+## AI SDK UI Message Stream v1
+
+`@agentic-chat/adapter-ai-sdk` 直接消费公开的 [UI Message Stream v1 协议](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) chunk，不要求安装 `ai` 或 `@ai-sdk/react`：
+
+```ts
+import { adaptAiSdkUIMessageChunks } from '@agentic-chat/adapter-ai-sdk'
+
+const adapted = adaptAiSdkUIMessageChunks(chunks, {
+  threadId: 'thread-1',
+  runId: 'run-1',
+  startedAt: new Date().toISOString(),
+})
+
+adapted.events.forEach(runtime.dispatch)
+adapted.diagnostics.forEach((item) => runtime.reportDiagnostic({
+  source: 'ai-sdk', code: item.code, message: item.message,
+}))
+```
+
+SSE transport 读取 `data:` 后可用 `parseAiSdkSseData` 解析 JSON payload；返回 `null` 表示 `[DONE]`，`undefined` 表示 comment/keep-alive。Host 必须校验响应头 `x-vercel-ai-ui-message-stream: v1`、处理 HTTP 状态、取消、超时与认证。
+
+该 Adapter 将 `tool-output-available/error` 视为权威执行结果。只有 function call 请求、没有宿主执行结果的来源不得伪造 `tool.completed`。当前 reasoning、file、source 和 `data-*` 默认安全降级；需要映射 Artifact 或可见 reasoning 时应先定义稳定来源契约。
+
+## Experimental Runtime Inspector
+
+本地调试 adapter lifecycle、sequence 和连接重试时，可显式启用 payload-free Inspector：
+
+```tsx
+const runtime = createRuntime({
+  experimentalInspection: { maxEvents: 200, maxConnections: 50 },
+})
+
+adapted.diagnostics.forEach((item) => runtime.reportDiagnostic({
+  source: 'my-adapter',
+  code: item.code,
+  message: item.message, // adapter 必须先脱敏
+  runId,
+}))
+
+<AgenticChat
+  runtime={runtime}
+  runId={runId}
+  onSend={send}
+  experimentalInspector={{}}
+/>
+```
+
+Inspector 只记录 event envelope、applied/ignored/diagnostic 结果和 connection status/attempt，不记录 event `data` 或 connection error。diagnostic message 默认隐藏；仅在可信开发环境中使用 `experimentalInspector={{ revealDiagnosticMessages: true }}`。这不是 event recorder，也不会进入 canonical snapshot。payload-free 不代表匿名：`eventId`、`threadId`、`runId` 和 `source` 可能携带个人或业务标识，宿主应生成非敏感标识并限制 Inspector 访问。
+
+### AG-UI Task state 约定（experimental）
+
+AG-UI 的共享 state 不会默认导入 canonical store。当前只识别显式命名空间中的完整任务集合：
+
+```ts
+{
+  agenticChat: {
+    tasks: {
+      revision: 2,
+      items: [{ id: 'research', title: 'Research', status: 'in_progress' }],
+    },
+  },
+}
+```
+
+`STATE_SNAPSHOT` 可携带该结构；`STATE_DELTA` 只接受单个 `add`/`replace` 操作，路径必须精确为 `/agenticChat/tasks`，value 是同一完整结构。任意其他共享状态继续转换为无 payload 的 `source.observed`。这是 0.x experimental 映射，不代表 AG-UI 官方字段。
