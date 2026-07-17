@@ -132,6 +132,6 @@ P3 功能与工程收口已完成，最终判定和证据见 `docs/20-p3-accepta
 - `adapter-ag-ui` 继续 `private: true`，Changesets ignore 与 private package 配置保持不变；
 - 公开包增加 tarball README 门，修正 `adapter-ai-sdk` LICENSE 复制遗漏；
 - npm 身份和组织 owner 可读检查通过，六个已发布包均为 public；`adapter-ai-sdk` 尚未创建，`adapter-ag-ui` registry 记录为已撤回且本地禁止发布；
-- GitHub 基线提交的 CI 与 Dependency Security 全绿；Beta 真发布前仍需建立 trusted publishing/OIDC provenance。NVDA 由外部团队并行执行，不作为 P4.0 发布门。
+- GitHub 基线提交的 CI 与 Dependency Security 全绿；维护者已配置六个现有包的 trusted publisher 与 `npm-beta` environment，仓库侧 `publish-beta.yml`、OIDC provenance 端到端验证和 `adapter-ai-sdk` bootstrap 由 P4.0 完成。NVDA 由外部团队并行执行，不作为 P4.0 发布门。
 
 完整准备记录、操作顺序与回滚方案见 `docs/22-p4-beta-release-readiness.md`。

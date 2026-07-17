@@ -2,14 +2,14 @@
 
 > 状态：发布前准备进行中；npm beta 未发布；Changesets 仍处于 `alpha` pre-mode。
 > 基线：`a90182a feat: harden P3 beta contracts and release gates`。
-> 审查日期：2026-07-16。
+> 审查日期：2026-07-17。
 
 ## 1. 结论
 
-P3 工程基线可以进入 P4.0 准备，但当前不得执行 Beta 发布。代码、包元数据和本地消费链可以继续加固；真正发布前必须由维护者批准 Changesets 状态切换和 npm 发布，并先关闭以下外部门：
+P3 工程基线可以进入 P4.0 准备，但当前不得执行 Beta 发布。代码、包元数据和本地消费链可以继续加固；真正发布前必须由维护者批准 Changesets 状态切换和 npm 发布，并完成以下剩余发布门：
 
-1. 建立或确认 npm trusted publishing、GitHub OIDC `id-token: write`、受保护 environment 与 provenance；当前本地 `release:beta` 不能证明 provenance；
-2. 确认首次创建 `@agentic-chat/adapter-ai-sdk` 的组织权限、trusted publisher 绑定和初始 dist-tag 行为。
+1. 维护者已为六个现有包配置 npm trusted publisher，并创建 GitHub `npm-beta` environment；仓库还需合入精确同名的 `publish-beta.yml` 并用真实 GitHub-hosted run 验证 OIDC/provenance；
+2. 首次创建 `@agentic-chat/adapter-ai-sdk` 后再绑定 trusted publisher，并核验初始 dist-tag 行为。
 
 NVDA + Edge 由维护者团队并行执行、结果后补，不属于 P4.0 或 Beta 发布前置条件。
 
@@ -55,7 +55,10 @@ Beta 序号延续各包既有 prerelease 计数，不是统一的 `beta.0`。新
 - `adapter-ai-sdk` 在 registry 中不存在，`npm access get status` 的默认结果不能替代首次建包权限与 trusted publisher 检查；
 - `adapter-ag-ui` registry 返回已于 2026-07-14 unpublished；本地 private/Changesets 配置继续阻止再次发布；
 - 通用 `npm access list packages` 返回 403，因此未能从该端点证明逐包写权限；正式发布前应以 trusted publisher 配置和逐包 dry-run 再确认；
-- Git remote 为 `agilebuilder/agentic-chat`，当前分支跟踪同名远端分支；基线提交的 CI 与 Dependency Security 运行全绿。
+- Git remote 为 `agilebuilder/agentic-chat`；当前 `codex/p4-beta-readiness` 仍是本地分支，P4 提交尚未获得远端 CI 结果；基线提交的 CI 与 Dependency Security 运行全绿。
+- GitHub API 已确认 `npm-beta` environment 存在，required reviewer 为 `agilebuilder`，`prevent_self_review = false`；这符合当前单维护者审批方式。
+- `npm-beta` 当前没有 environment 级 deployment branch policy，管理员也可以 bypass。发布 workflow 因此必须同时用触发条件和 job guard 限制 `refs/heads/main`；main branch protection/ruleset 作为 P4.3 高优先级加固项。
+- 当前 npm CLI 身份读取 trusted publisher 返回 403，无法从本机独立复述六包后台字段；维护者已确认配置完成，首次 GitHub OIDC run 仍是最终端到端证明。
 
 ## 5. 本地发布前验证
 
@@ -69,7 +72,7 @@ pnpm verify:packages
 
 `verify:packages` 应创建七个 tarball，在全新临时 consumer 中执行 pnpm install、根入口 ESM/SSR import 和 TypeScript typecheck，并检查精确内部依赖、README 与 LICENSE。另需用 Vite production build 覆盖真实 bundler 入口；所有验证必须使用 tarball，不能依赖 workspace alias。
 
-本轮结果（2026-07-16）：
+本轮结果（2026-07-17）：
 
 - `pnpm verify`：通过，19 个测试文件、130/130 单元测试；边界、CSS、安全、TypeScript、构建、API Extractor、包体、Node harness 均通过；
 - `pnpm quality:browser`：23/23 通过；
@@ -78,6 +81,14 @@ pnpm verify:packages
 - 包体：core 125,593/131,072 bytes（96%），react-ui 103,810/114,688（91%），runtime 82%，testkit 77%，adapter-ai-sdk 45%，adapter-chatbi 52%。
 
 core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优先使用文档、可选入口或独立包。
+
+仓库侧发布门已准备为：
+
+- `.github/workflows/publish-beta.yml`：只允许从 `main` 手动触发；preflight 运行版本/registry 检查、`pnpm verify` 和 23 项浏览器质量门；publish job 使用 `npm-beta` environment、OIDC `id-token: write`、Node 22.23.1、npm 11.18.0 和 provenance；
+- `.github/workflows/bootstrap-adapter-ai-sdk.yml`：同样经过完整 preflight 和 environment 审批，只在输入精确确认文本并提供短期 `NPM_BOOTSTRAP_TOKEN` 时首次创建 adapter；发布后断言 manifest、`beta` tag 与“未创建 `latest`”；
+- 两条 workflow 的 checkout、Node 和 pnpm Actions 均固定为已复核的完整 commit SHA；正式 publish workflow 不读取长期 npm token；
+- `pnpm check:release` 将 workflow 文件名、environment、main-only、OIDC、provenance、npm 版本、Action SHA pin、显式 beta tag 和 private AG-UI 约束纳入 `pnpm verify`；
+- 隔离 clone 已再次完成 alpha → beta 版本演算、registry 未发布检查、adapter tarball 构建和 `npm publish --dry-run`；仓库工作区仍保持 alpha pre-mode，未执行任何正式状态切换或外部发布。
 
 ## 6. 获批后的准确操作顺序
 
@@ -100,12 +111,14 @@ core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优
 7. 再次运行完整 verify、browser、tarball、clean Vite consumer 和 publish dry-run；
 8. 提交版本化结果并等待远端发布门全绿；
 9. 获得 npm Beta 发布批准；
-10. 通过受保护 trusted-publishing workflow 发布，使用 Changesets pre-mode 推导的 `beta` dist-tag，不额外传 `--tag beta`；
-11. 逐包验证 `npm view` 的版本、`beta`、integrity、README、LICENSE、repository 和 provenance；
-12. 从公共 npm `@beta`/精确版本在全新目录重复 install、typecheck、production build 与 smoke；
-13. Git tag、GitHub Release 或任何 `latest` 调整继续单独申请批准。
+10. 先通过一次性 bootstrap workflow 用短期最小权限 token 创建 `adapter-ai-sdk@0.1.0-beta.1`，显式使用 `--tag beta --access public` 和 provenance；创建后立即配置其 trusted publisher、删除 GitHub secret 并撤销 token；
+11. 通过受保护的 `publish-beta.yml` 发布其余包。workflow 使用 npm CLI `>=11.5.1` 的 `npm publish <reviewed-tarball> --tag beta --access public`，以确保只移动 `beta`，并由 OIDC 生成 provenance；
+12. 发布脚本跳过 registry 中已存在且 manifest 与本地完全匹配的精确版本，从而安全跳过已 bootstrap 的 adapter，并支持部分发布失败后的幂等重试；
+13. 逐包验证 `npm view` 的版本、`beta`、integrity、README、LICENSE、repository 和 provenance，并断言已有 `latest` 未移动；
+14. 从公共 npm `@beta`/精确版本在全新目录重复 install、typecheck、production build 与 smoke；
+15. Git tag、GitHub Release 或任何 `latest` 调整继续单独申请批准。
 
-对于六个已有包，发布不得移动现有 `latest`。`adapter-ai-sdk` 是首次建包，npm 可能初始化 `latest`；这是新包例外，必须在发布批准中明确接受并在发布后核验，不能悄然当作稳定承诺。
+对于六个已有包，发布不得移动现有 `latest`。Changesets 对“只有 prerelease、没有稳定版”的包会默认选择 `latest`，且其 CLI 不允许在 pre-mode 追加自定义 tag，因此 Beta trusted workflow 不直接调用 `changeset publish`，而是对经 pnpm pack 验证的 tarball 显式执行 npm `--tag beta`。`adapter-ai-sdk` 是首次建包，初始 tag 行为必须在 bootstrap 后核验；任何 `latest` 例外都不能悄然当作稳定承诺。
 
 ## 7. 回滚与失败处理
 

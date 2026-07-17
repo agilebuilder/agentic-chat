@@ -39,8 +39,8 @@ pnpm quality:browser
 
 - P3.7 新增 API 明确命名为 `experimentalInspection` / `ExperimentalRuntimeInspector`，不纳入 Beta 稳定承诺。
 - 已由公开包根入口导出的 Run、Activity、ToolCall、Message、Task、Artifact、Intervention、subagent 与 adapter/runtime contract 均纳入 Beta 基线；只有明确以 `Experimental` / `experimental` 命名的 API 不进入兼容性承诺。执行门见 `docs/18-p3-public-api-baseline.md`。
-- Changesets 已记录新增能力；正式发布前依次执行 `pre exit`、`pre enter beta`、`version`、完整验证和 `release:beta`。pre-mode 已决定 npm dist-tag，不向 `changeset publish` 追加 `--tag beta`。
-- 当前 `release:beta` 是本地发布脚本，尚无 trusted publishing/OIDC 与 provenance workflow；在满足 provenance 门或由维护者明确修改发布要求前，不得执行 Beta 发布。
+- Changesets 已记录新增能力；正式发布前依次执行 `pre exit`、`pre enter beta`、`version`、完整验证和受保护的 `release:beta`。Changesets 仍负责版本与 changelog，但 Beta 发布必须显式使用 `--tag beta`，避免只有 prerelease 的包被默认推到 `latest`。
+- 维护者已配置六个现有包的 trusted publisher 和 GitHub `npm-beta` environment；P4.0 正在补充 `publish-beta.yml`、OIDC/provenance 门和 `adapter-ai-sdk` 一次性 bootstrap。首次端到端发布验证完成前仍不得执行 Beta 发布。
 - “整个 Beta 周期无重大重构”是持续门，不能在 Beta 启动当天一次性判定；每个后续 PR 必须给出迁移说明并通过 tarball consumer 验证。
 
 ## 5. P3.7 完成判定

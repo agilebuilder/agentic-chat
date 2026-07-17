@@ -11,6 +11,7 @@
     "typecheck": "tsc -b",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:css-scope": "node scripts/check-css-scope.mjs",
+    "check:release": "node scripts/check-release-config.mjs",
     "check:size": "node scripts/check-package-size.mjs",
     "check:security": "node scripts/check-security.mjs",
     "api:check": "node scripts/check-public-api.mjs",
@@ -30,10 +31,11 @@
     "changeset:pre-exit": "changeset pre exit",
     "version:packages": "changeset version",
     "release:alpha": "pnpm build && changeset publish",
-    "release:beta": "pnpm build && changeset publish",
+    "release:beta": "node scripts/publish-beta.mjs",
+    "release:beta:check": "node scripts/check-beta-release.mjs --registry",
     "verify:node": "pnpm --filter @agentic-chat/node-harness test",
     "verify:packages": "node scripts/verify-packages.mjs",
-    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:security && pnpm typecheck && pnpm test && pnpm build && pnpm api:check && pnpm check:size && pnpm verify:node && pnpm verify:packages"
+    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:release && pnpm check:security && pnpm typecheck && pnpm test && pnpm build && pnpm api:check && pnpm check:size && pnpm verify:node && pnpm verify:packages"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
