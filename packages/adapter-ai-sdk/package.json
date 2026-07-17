@@ -3,6 +3,10 @@
   "version": "0.1.0-beta.1",
   "type": "module",
   "description": "AI SDK UI Message Stream adapter for Agentic Chat UI.",
+  "homepage": "https://github.com/agilebuilder/agentic-chat#readme",
+  "bugs": { "url": "https://github.com/agilebuilder/agentic-chat/issues" },
+  "keywords": ["agent", "chat", "adapter", "ai-sdk", "streaming"],
+  "engines": { "node": ">=20" },
   "license": "MIT",
   "repository": {
     "type": "git",

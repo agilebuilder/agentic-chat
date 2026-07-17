@@ -1,6 +1,7 @@
 import type { AgentError, CanonicalEvent } from '@agentic-chat/core'
 import type { AdapterCapabilities } from '@agentic-chat/runtime'
 
+/** @public */
 export const chatBiCapabilities: AdapterCapabilities = {
   send: true,
   sequence: 'strict-per-run',
@@ -12,8 +13,10 @@ export const chatBiCapabilities: AdapterCapabilities = {
   artifacts: false,
 }
 
+/** @public */
 export type ChatBiEventType = 'run.started' | 'thinking.delta' | 'tool.started' | 'tool.finished' | 'result' | 'artifact.created' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'heartbeat'
 
+/** @public */
 export interface ChatBiRunEvent {
   protocol_version: '1.0'
   event_id: string
@@ -26,11 +29,13 @@ export interface ChatBiRunEvent {
   payload: Record<string, unknown>
 }
 
+/** @public */
 export interface AdapterDiagnostic {
   code: 'unsupported_event' | 'invalid_event'
   message: string
 }
 
+/** @public */
 export interface AdaptResult {
   event?: CanonicalEvent
   diagnostic?: AdapterDiagnostic
@@ -51,6 +56,7 @@ const errorFrom = (payload: Record<string, unknown>): AgentError => ({
   message: typeof payload.message === 'string' ? payload.message : 'ChatBI run failed',
 })
 
+/** @public */
 export function adaptChatBiEvent(event: ChatBiRunEvent): AdaptResult {
   const base = envelope(event)
   switch (event.event_type) {

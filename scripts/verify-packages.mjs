@@ -61,13 +61,18 @@ const reactTypesPackage = JSON.parse(await readFile(resolve(root, 'node_modules/
 const reactDomTypesPackage = JSON.parse(await readFile(resolve(root, 'node_modules/@types/react-dom/package.json'), 'utf8'))
 const vitePackage = JSON.parse(await readFile(resolve(root, 'node_modules/vite/package.json'), 'utf8'))
 const viteReactPackage = JSON.parse(await readFile(resolve(root, 'node_modules/@vitejs/plugin-react/package.json'), 'utf8'))
-dependencies.react = reactPackage.version
-dependencies['react-dom'] = reactDomPackage.version
-dependencies.typescript = typescriptPackage.version
-dependencies['@types/react'] = reactTypesPackage.version
-dependencies['@types/react-dom'] = reactDomTypesPackage.version
-dependencies.vite = vitePackage.version
-dependencies['@vitejs/plugin-react'] = viteReactPackage.version
+const compatibilityProfile = process.env.AGENTIC_CHAT_COMPAT_PROFILE ?? 'current'
+const compatibilityVersions = compatibilityProfile === 'react18-ts54'
+  ? { react: '18.2.0', reactDom: '18.2.0', typescript: '5.4.5', reactTypes: '18.2.79', reactDomTypes: '18.2.25' }
+  : { react: reactPackage.version, reactDom: reactDomPackage.version, typescript: typescriptPackage.version, reactTypes: reactTypesPackage.version, reactDomTypes: reactDomTypesPackage.version }
+assert.ok(['current', 'react18-ts54'].includes(compatibilityProfile), `unknown compatibility profile ${compatibilityProfile}`)
+dependencies.react = compatibilityVersions.react
+dependencies['react-dom'] = compatibilityVersions.reactDom
+dependencies.typescript = compatibilityVersions.typescript
+dependencies['@types/react'] = compatibilityVersions.reactTypes
+dependencies['@types/react-dom'] = compatibilityVersions.reactDomTypes
+dependencies.vite = compatibilityProfile === 'react18-ts54' ? '5.4.21' : vitePackage.version
+dependencies['@vitejs/plugin-react'] = compatibilityProfile === 'react18-ts54' ? '4.3.4' : viteReactPackage.version
 
 const overrides = Object.fromEntries(Object.entries(dependencies).filter(([name]) => name.startsWith('@agentic-chat/')))
 await writeFile(resolve(consumerDirectory, 'package.json'), `${JSON.stringify({ private: true, type: 'module', scripts: { build: 'tsc --noEmit && vite build' }, dependencies, pnpm: { overrides } }, null, 2)}\n`)
@@ -138,4 +143,4 @@ run('pnpm', ['install', '--ignore-workspace', '--prefer-offline', '--ignore-scri
 run('node', ['smoke.mjs'], consumerDirectory)
 run('pnpm', ['build'], consumerDirectory)
 
-console.log(`Verified ${archives.length} installable package archives with ESM/SSR imports, TypeScript, and a production Vite build.`)
+console.log(`Verified ${archives.length} installable package archives with ESM/SSR imports, TypeScript, and a production Vite build (${compatibilityProfile}).`)

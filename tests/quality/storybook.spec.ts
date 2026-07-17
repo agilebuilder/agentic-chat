@@ -19,6 +19,14 @@ async function openStory(page: Page, id: string) {
   await expect(page.locator('.ac-root')).toBeVisible()
 }
 
+test('SSR markup hydrates with a matching request-local runtime snapshot', async ({ page }) => {
+  await page.goto('http://127.0.0.1:6008/hydration.html')
+  await expect(page.locator('#root')).toHaveAttribute('data-hydrated', 'true')
+  await expect(page.getByRole('status')).toContainText('运行中')
+  const hydration = await page.evaluate(() => window.__agenticHydration)
+  expect(hydration).toEqual({ errors: [], hydrated: true })
+})
+
 test('same default UI switches across three adapter runtimes', async ({ page }) => {
   await page.goto('http://127.0.0.1:6008')
   const source = page.getByLabel('事件源')

@@ -1,5 +1,6 @@
 import type { AgentError, ArtifactChecksum, ArtifactProvenance, InterventionField, InterventionOption, TaskStatus } from './model.js'
 
+/** @public */
 export interface CanonicalTaskValue {
   id: string
   parentId?: string
@@ -8,11 +9,13 @@ export interface CanonicalTaskValue {
   status: TaskStatus
 }
 
+/** @public */
 export type CanonicalTaskPatch =
   | { operation: 'upsert'; value: Omit<CanonicalTaskValue, 'id'> }
   | { operation: 'update'; changes: { parentId?: string | null; activityId?: string | null; title?: string; status?: TaskStatus } }
   | { operation: 'remove' }
 
+/** @public */
 export interface EventEnvelope<TType extends string, TData> {
   schemaVersion: '0.1'
   eventId: string
@@ -25,6 +28,7 @@ export interface EventEnvelope<TType extends string, TData> {
   source?: string
 }
 
+/** @public */
 export type CanonicalEvent =
   | EventEnvelope<'run.started', { attempt?: number; retryOfRunId?: string }>
   | EventEnvelope<'run.status.changed', { status: 'running' | 'awaiting_input' | 'paused' }>

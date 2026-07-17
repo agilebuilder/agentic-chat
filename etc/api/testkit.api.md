@@ -103,7 +103,7 @@ export interface ConformanceResult {
 }
 
 // @public (undocumented)
-export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-order' | 'unordered';
+export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-order';
 
 // @public (undocumented)
 export const rawChatBiCancelledRun: readonly [RawChatBiEvent];

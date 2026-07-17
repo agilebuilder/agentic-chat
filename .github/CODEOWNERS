@@ -1,0 +1,6 @@
+* @agilebuilder
+
+/packages/core/ @agilebuilder
+/packages/runtime/ @agilebuilder
+/.github/workflows/ @agilebuilder
+/docs/adr/ @agilebuilder

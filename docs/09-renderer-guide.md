@@ -1,6 +1,8 @@
 # Renderer 扩展指南
 
-P2 Alpha 的 renderer registry 属于 `@agentic-chat/react`。每个 Provider 使用自己的 registry，因此多个应用、SSR 请求和测试之间不会共享注册状态。
+本指南的自定义 renderer 对应仓库内持续编译的 [`apps/examples/src/custom-renderer.tsx`](../apps/examples/src/custom-renderer.tsx)，避免文档示例与公共类型漂移。
+
+renderer registry 属于 `@agentic-chat/react`。每个 Provider 使用自己的 registry，因此多个应用、SSR 请求和测试之间不会共享注册状态。
 
 ## 注册领域 renderer
 

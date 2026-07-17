@@ -1,42 +1,55 @@
 import type { Activity, Artifact, Message, RenderableContent, ToolCall } from '@agentic-chat/core'
 import type { ComponentType } from 'react'
 
+/** @public */
 export type RendererMode = 'compact' | 'full' | 'panel'
+/** @public */
 export type Unsubscribe = () => void
 
+/** @public */
 export interface ToolRendererProps {
   tool: ToolCall
   activity: Activity
   mode: RendererMode
 }
 
+/** @public */
 export interface ResultRendererProps {
   runId: string
   content: RenderableContent
   mode: RendererMode
 }
 
+/** @public */
 export interface ArtifactRendererProps {
   artifact: Artifact
   mode: RendererMode
 }
 
+/** @public */
 export interface ArtifactPreviewRendererProps {
   artifact: Artifact
   mode: RendererMode
 }
 
+/** @public */
 export interface MessageRendererProps {
   message: Message
   mode: RendererMode
 }
 
+/** @public */
 export type ToolRenderer = ComponentType<ToolRendererProps>
+/** @public */
 export type ResultRenderer = ComponentType<ResultRendererProps>
+/** @public */
 export type ArtifactRenderer = ComponentType<ArtifactRendererProps>
+/** @public */
 export type ArtifactPreviewRenderer = ComponentType<ArtifactPreviewRendererProps>
+/** @public */
 export type MessageRenderer = ComponentType<MessageRendererProps>
 
+/** @public */
 export interface RendererRegistry {
   tool(name: string, renderer: ToolRenderer): Unsubscribe
   result(kind: string, renderer: ResultRenderer): Unsubscribe
@@ -52,6 +65,7 @@ export interface RendererRegistry {
   getVersion(): number
 }
 
+/** @public */
 export function createRendererRegistry(): RendererRegistry {
   const tools = new Map<string, ToolRenderer>()
   const results = new Map<string, ResultRenderer>()

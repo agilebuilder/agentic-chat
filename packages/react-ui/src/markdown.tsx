@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react'
 
+/** @public */
 export interface MarkdownProps {
   children: string
   className?: string
@@ -8,6 +9,7 @@ export interface MarkdownProps {
 /**
  * A deliberately conservative Markdown renderer for untrusted agent output.
  * It never interprets raw HTML and only emits React elements, so HTML remains text.
+ * @public
  */
 export function Markdown({ children, className }: MarkdownProps) {
   const blocks = parseBlocks(children)

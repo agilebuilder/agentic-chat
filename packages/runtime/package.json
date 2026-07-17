@@ -3,6 +3,10 @@
   "version": "0.1.0-beta.2",
   "type": "module",
   "description": "Framework-independent runtime and selectors for Agentic Chat UI.",
+  "homepage": "https://github.com/agilebuilder/agentic-chat#readme",
+  "bugs": { "url": "https://github.com/agilebuilder/agentic-chat/issues" },
+  "keywords": ["agent", "chat", "runtime", "streaming", "typescript"],
+  "engines": { "node": ">=20" },
   "license": "MIT",
   "repository": {
     "type": "git",

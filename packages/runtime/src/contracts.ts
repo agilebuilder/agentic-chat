@@ -1,8 +1,9 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 
+/** @public */
 export interface AdapterCapabilities {
   send: boolean
-  sequence: 'strict-per-run' | 'synthesized-stream-order' | 'unordered'
+  sequence: 'strict-per-run' | 'synthesized-stream-order'
   replay: 'none' | 'completed-history' | 'live-resume' | 'snapshot-and-delta'
   cancel: boolean
   resume: boolean
@@ -11,34 +12,40 @@ export interface AdapterCapabilities {
   artifacts: boolean
 }
 
+/** @public */
 export interface AdapterContext {
   sourceIndex: number
   threadId?: string
   runId?: string
 }
 
+/** @public */
 export interface AdapterDiagnostic {
   code: string
   message: string
   source?: unknown
 }
 
+/** @public */
 export interface AdapterResult {
   events: CanonicalEvent[]
   diagnostics: AdapterDiagnostic[]
 }
 
+/** @public */
 export interface AgentAdapter<TSourceEvent> {
   readonly id: string
   readonly capabilities: AdapterCapabilities
   adapt(event: TSourceEvent, context: AdapterContext): AdapterResult
 }
 
+/** @public */
 export interface CommandReceipt {
   commandId: string
   accepted: boolean
 }
 
+/** @public */
 export interface AgentCommands {
   send?(input: unknown, idempotencyKey: string): Promise<CommandReceipt>
   cancelRun?(runId: string): Promise<void>
@@ -47,19 +54,23 @@ export interface AgentCommands {
   resumeRun?(runId: string): Promise<void>
 }
 
+/** @public */
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'
 
+/** @public */
 export interface ConnectionState {
   status: ConnectionStatus
   attempt: number
   error?: string
 }
 
+/** @public */
 export interface CommandState {
   status: 'idle' | 'pending' | 'succeeded' | 'failed'
   error?: string
 }
 
+/** @public */
 export interface RuntimeDiagnostic {
   source: string
   code: string
@@ -68,6 +79,7 @@ export interface RuntimeDiagnostic {
   eventId?: string
 }
 
+/** @alpha */
 export interface ExperimentalInspectedEvent {
   eventId: string
   type: CanonicalEvent['type']
@@ -79,16 +91,19 @@ export interface ExperimentalInspectedEvent {
   outcome: 'applied' | 'ignored' | 'diagnostic'
 }
 
+/** @alpha */
 export interface ExperimentalInspectedConnection {
   status: ConnectionStatus
   attempt: number
 }
 
+/** @alpha */
 export interface ExperimentalInspectionSnapshot {
   events: ExperimentalInspectedEvent[]
   connections: ExperimentalInspectedConnection[]
 }
 
+/** @alpha */
 export interface ExperimentalInspectionOptions {
   /** Maximum retained event envelopes. Event payloads are never captured. */
   maxEvents?: number
@@ -96,9 +111,10 @@ export interface ExperimentalInspectionOptions {
   maxConnections?: number
 }
 
+/** @public */
 export const noCapabilities: AdapterCapabilities = {
   send: false,
-  sequence: 'unordered',
+  sequence: 'synthesized-stream-order',
   replay: 'none',
   cancel: false,
   resume: false,
@@ -107,6 +123,7 @@ export const noCapabilities: AdapterCapabilities = {
   artifacts: false,
 }
 
+/** @public */
 export function assertCommandCapabilities(capabilities: AdapterCapabilities, commands: AgentCommands): void {
   const pairs = [
     ['send', capabilities.send, commands.send],

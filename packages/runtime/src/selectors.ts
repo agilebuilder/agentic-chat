@@ -1,22 +1,28 @@
 import type { Activity, AgentRun, AgenticState, Artifact, ToolCall } from '@agentic-chat/core'
 
+/** @public */
 export const selectRun = (state: AgenticState, runId: string): AgentRun | undefined => state.runs[runId]
 
+/** @public */
 export const selectRunActivities = (state: AgenticState, runId: string): Activity[] => {
   const run = state.runs[runId]
   if (!run) return []
   return run.activityIds.map((id) => state.activities[id]).filter((item): item is Activity => item !== undefined)
 }
 
+/** @public */
 export const selectRootActivityIds = (state: AgenticState, runId: string): readonly string[] => state.rootActivityIdsByRunId[runId] ?? emptyIds
 
+/** @public */
 export const selectChildActivityIds = (state: AgenticState, activityId: string): readonly string[] => state.childActivityIdsByParentId[activityId] ?? emptyIds
 
+/** @public */
 export interface ActivityTreeNode {
   activity: Activity
   children: ActivityTreeNode[]
 }
 
+/** @public */
 export function selectRunActivityTree(state: AgenticState, runId: string): ActivityTreeNode[] {
   const build = (activityId: string): ActivityTreeNode | undefined => {
     const activity = state.activities[activityId]
@@ -26,6 +32,7 @@ export function selectRunActivityTree(state: AgenticState, runId: string): Activ
   return selectRootActivityIds(state, runId).map(build).filter((item): item is ActivityTreeNode => item !== undefined)
 }
 
+/** @public */
 export function selectRunAttemptHistory(state: AgenticState, runId: string): AgentRun[] {
   const target = state.runs[runId]
   if (!target) return []
@@ -47,8 +54,10 @@ export function selectRunAttemptHistory(state: AgenticState, runId: string): Age
     .sort((left, right) => left.attempt - right.attempt || left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
 }
 
+/** @public */
 export const selectToolCall = (state: AgenticState, toolCallId: string): ToolCall | undefined => state.toolCalls[toolCallId]
 
+/** @public */
 export const selectLatestRunId = (state: AgenticState, threadId?: string): string | undefined => {
   let latest: AgentRun | undefined
   for (const run of Object.values(state.runs)) {
@@ -58,19 +67,23 @@ export const selectLatestRunId = (state: AgenticState, threadId?: string): strin
   return latest?.id
 }
 
+/** @public */
 export const selectRunNeedsAttention = (state: AgenticState, runId: string): boolean => {
   const run = state.runs[runId]
   return run?.status === 'awaiting_input' || Object.values(state.interventions).some((item) => item.runId === runId && item.status === 'pending')
 }
 
+/** @public */
 export const selectRunArtifacts = (state: AgenticState, runId: string): Artifact[] => Object.values(state.artifacts)
   .filter((artifact) => artifact.runId === runId)
   .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.version - right.version || left.id.localeCompare(right.id))
 
+/** @public */
 export const selectArtifactsForActivity = (state: AgenticState, activityId: string): Artifact[] => Object.values(state.artifacts)
   .filter((artifact) => artifact.provenance.activityId === activityId)
   .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
 
+/** @public */
 export function selectArtifactVersionHistory(state: AgenticState, artifactId: string): Artifact[] {
   const target = state.artifacts[artifactId]
   if (!target) return []

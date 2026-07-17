@@ -38,7 +38,7 @@ export interface AdapterCapabilities {
     // (undocumented)
     send: boolean;
     // (undocumented)
-    sequence: 'strict-per-run' | 'synthesized-stream-order' | 'unordered';
+    sequence: 'strict-per-run' | 'synthesized-stream-order';
 }
 
 // @public (undocumented)
@@ -162,7 +162,7 @@ export interface CreateRuntimeOptions {
     capabilities?: AdapterCapabilities;
     // (undocumented)
     commands?: AgentCommands;
-    // (undocumented)
+    // @alpha (undocumented)
     experimentalInspection?: ExperimentalInspectionOptions;
     // (undocumented)
     initialSnapshot?: CanonicalSnapshot | LegacyCanonicalSnapshot;
@@ -170,7 +170,7 @@ export interface CreateRuntimeOptions {
     initialState?: AgenticState;
 }
 
-// @public (undocumented)
+// @alpha (undocumented)
 export interface ExperimentalInspectedConnection {
     // (undocumented)
     attempt: number;
@@ -178,7 +178,7 @@ export interface ExperimentalInspectedConnection {
     status: ConnectionStatus;
 }
 
-// @public (undocumented)
+// @alpha (undocumented)
 export interface ExperimentalInspectedEvent {
     // (undocumented)
     eventId: string;
@@ -198,13 +198,13 @@ export interface ExperimentalInspectedEvent {
     type: CanonicalEvent['type'];
 }
 
-// @public (undocumented)
+// @alpha (undocumented)
 export interface ExperimentalInspectionOptions {
     maxConnections?: number;
     maxEvents?: number;
 }
 
-// @public (undocumented)
+// @alpha (undocumented)
 export interface ExperimentalInspectionSnapshot {
     // (undocumented)
     connections: ExperimentalInspectedConnection[];
@@ -237,6 +237,7 @@ export interface RuntimeSnapshot {
     connection: ConnectionState;
     // (undocumented)
     diagnostics: RuntimeDiagnostic[];
+    // @alpha
     experimentalInspection?: ExperimentalInspectionSnapshot;
     // (undocumented)
     state: AgenticState;

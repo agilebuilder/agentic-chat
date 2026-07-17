@@ -3,15 +3,17 @@ import { assertCommandCapabilities, noCapabilities, type AdapterCapabilities, ty
 export * from './contracts.js'
 export * from './selectors.js'
 
+/** @public */
 export interface RuntimeSnapshot {
   state: AgenticState
   connection: ConnectionState
   commands: Record<string, CommandState>
   diagnostics: RuntimeDiagnostic[]
-  /** Opt-in, bounded, payload-free development diagnostics. */
+  /** Opt-in, bounded, payload-free development diagnostics. @alpha */
   experimentalInspection?: ExperimentalInspectionSnapshot
 }
 
+/** @public */
 export interface AgenticRuntime {
   readonly capabilities: AdapterCapabilities
   readonly commands: AgentCommands
@@ -27,14 +29,17 @@ export interface AgenticRuntime {
   subscribe(listener: () => void): () => void
 }
 
+/** @public */
 export interface CreateRuntimeOptions {
   initialState?: AgenticState
   initialSnapshot?: CanonicalSnapshot | LegacyCanonicalSnapshot
   capabilities?: AdapterCapabilities
   commands?: AgentCommands
+  /** @alpha */
   experimentalInspection?: ExperimentalInspectionOptions
 }
 
+/** @public */
 export function createRuntime(options: CreateRuntimeOptions = {}): AgenticRuntime {
   if (options.initialState && options.initialSnapshot) throw new Error('Provide either initialState or initialSnapshot, not both')
   const inspectionLimits = options.experimentalInspection ? {

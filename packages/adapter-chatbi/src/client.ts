@@ -1,6 +1,7 @@
 import { createRuntime, type AgenticRuntime, type CommandReceipt } from '@agentic-chat/runtime'
 import { adaptChatBiEvent, chatBiCapabilities, type ChatBiRunEvent } from './index.js'
 
+/** @public */
 export interface ChatBiRun {
   id: string
   session_id: string
@@ -8,16 +9,19 @@ export interface ChatBiRun {
   created_at?: string
 }
 
+/** @public */
 export interface ChatBiTarget {
   source_id?: string
   dataset_id?: string
 }
 
+/** @public */
 export interface ChatBiClientOptions {
   baseUrl?: string
   fetch?: typeof globalThis.fetch
 }
 
+/** @public */
 export interface StreamOptions {
   afterSequence?: number
   signal?: AbortSignal
@@ -34,6 +38,7 @@ const parseEvent = (value: unknown): ChatBiRunEvent => {
   return event as ChatBiRunEvent
 }
 
+/** @public */
 export function parseChatBiSseBuffer(buffer: string): { events: ChatBiRunEvent[]; remainder: string } {
   const blocks = buffer.split(/\r?\n\r?\n/)
   const remainder = blocks.pop() ?? ''
@@ -45,6 +50,7 @@ export function parseChatBiSseBuffer(buffer: string): { events: ChatBiRunEvent[]
   return { events, remainder }
 }
 
+/** @public */
 export class ChatBiClient {
   readonly #baseUrl: string
   readonly #fetch: typeof globalThis.fetch
@@ -86,6 +92,7 @@ export class ChatBiClient {
   }
 }
 
+/** @public */
 export interface ChatBiControllerOptions extends ChatBiClientOptions {
   sessionId: string
   target: ChatBiTarget
@@ -93,6 +100,7 @@ export interface ChatBiControllerOptions extends ChatBiClientOptions {
   reconnectDelayMs?: number
 }
 
+/** @public */
 export interface ChatBiController {
   runtime: AgenticRuntime
   start(message: string, signal?: AbortSignal, idempotencyKey?: string): Promise<string>
@@ -101,6 +109,7 @@ export interface ChatBiController {
   cancel(runId: string): Promise<void>
 }
 
+/** @public */
 export function createChatBiController(options: ChatBiControllerOptions): ChatBiController {
   const client = new ChatBiClient(options)
   const commands = {

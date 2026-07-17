@@ -82,7 +82,7 @@ core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优
 仓库侧发布门已准备为：
 
 - `.github/workflows/publish-beta.yml`：只允许从 `main` 手动触发；preflight 运行版本/registry 检查、`pnpm verify` 和 23 项浏览器质量门；publish job 使用 `npm-beta` environment、OIDC `id-token: write`、Node 22.23.1、npm 11.18.0 和 provenance；
-- `.github/workflows/bootstrap-adapter-ai-sdk.yml`：同样经过完整 preflight 和 environment 审批，只在输入精确确认文本并提供短期 `NPM_BOOTSTRAP_TOKEN` 时首次创建 adapter；发布后断言 manifest、`beta` tag，并只接受初始 `latest` 不存在或指向唯一已发布版本；
+- 首次创建 adapter-ai-sdk 时曾使用一次性 bootstrap workflow 和短期 `NPM_BOOTSTRAP_TOKEN`；完成 Trusted Publisher 配置并撤销 token 后，该 workflow 与验证脚本已在 P4.3 删除，避免误触或形成长期 token 路径；
 - 两条 workflow 的 checkout、Node 和 pnpm Actions 均固定为已复核的完整 commit SHA；正式 publish workflow 不读取长期 npm token；
 - `pnpm check:release` 将 workflow 文件名、environment、main-only、OIDC、provenance、npm 版本、Action SHA pin、显式 beta tag 和 private AG-UI 约束纳入 `pnpm verify`；
 - 正式切换前，隔离 clone 已完成 alpha → beta 版本演算、registry 未发布检查、adapter tarball 构建和 `npm publish --dry-run`；该演练没有改变仓库或外部发布状态。

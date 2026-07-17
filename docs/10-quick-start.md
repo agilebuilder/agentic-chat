@@ -4,16 +4,16 @@
 
 ## 1. 发布状态
 
-首批 npm Alpha 已于 2026-07-15 发布并完成空目录安装验收。发布前的 `npm publish --dry-run` 和仓库内 workspace 构建不能替代正式 npm 安装验收。
+七个公开包的 npm Beta 已发布并完成空目录安装、类型检查、根入口导入和 production build 验收。发布前的 `npm publish --dry-run` 和仓库内 workspace 构建不能替代正式 npm 安装验收。
 
-- 普通体验可以安装 `@alpha`；
+- 普通体验安装 `@beta`；
 - 正式验收必须使用发布方提供的确切版本，确保结果可复现；
-- 若 `npm view @agentic-chat/core@alpha version` 返回 404，说明尚不能进行正式测试。
+- 若 `npm view @agentic-chat/core@beta version` 返回 404，说明 registry 或网络尚不能进行正式测试。
 
 本轮 30 分钟独立验收固定使用以下版本：
 
 ```bash
-pnpm add @agentic-chat/core@0.1.0-alpha.1 @agentic-chat/runtime@0.1.0-alpha.1 @agentic-chat/react-ui@0.1.0-alpha.1
+pnpm add @agentic-chat/core@0.1.0-beta.2 @agentic-chat/runtime@0.1.0-beta.2 @agentic-chat/react-ui@0.1.0-beta.2
 ```
 
 ## 2. 环境要求
@@ -22,7 +22,7 @@ pnpm add @agentic-chat/core@0.1.0-alpha.1 @agentic-chat/runtime@0.1.0-alpha.1 @a
 - pnpm 10；
 - React 18 或 19；
 - 可访问 npm registry 的网络；
-- P2 Alpha 正式验证范围为 Chromium 内核：CI 使用 Playwright Chromium，独立验收使用 Microsoft Edge。Firefox 和 Safari 尚未进入 P2 兼容矩阵，不代表已知不兼容，但当前不作正式支持承诺。
+- 当前正式自动化范围为 Chromium，Node.js 为 20/22。React 18/19、Firefox、WebKit 和真实 hydration 正在 P4 兼容矩阵中加固；在对应门禁全绿前不扩大支持承诺。
 
 检查环境：
 
@@ -34,16 +34,16 @@ npm config get registry
 
 ## 3. 创建项目并安装
 
-普通 Alpha 体验：
+普通 Beta 体验：
 
 ```bash
 pnpm create vite my-agent-chat --template react-ts
 cd my-agent-chat
 pnpm install
-pnpm add @agentic-chat/core@alpha @agentic-chat/runtime@alpha @agentic-chat/react-ui@alpha
+pnpm add @agentic-chat/core@beta @agentic-chat/runtime@beta @agentic-chat/react-ui@beta
 ```
 
-正式 30 分钟验收时，不使用移动的 `alpha` 标签。把发布方给出的确切版本分别替换到下面命令中：
+正式 30 分钟验收时，不使用移动的 `beta` 标签。把发布方给出的确切版本分别替换到下面命令中：
 
 ```bash
 pnpm add @agentic-chat/core@<core-version> @agentic-chat/runtime@<runtime-version> @agentic-chat/react-ui@<react-ui-version>

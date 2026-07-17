@@ -1,3 +1,4 @@
+/** @public */
 export type RunStatus =
   | 'queued'
   | 'running'
@@ -7,6 +8,7 @@ export type RunStatus =
   | 'failed'
   | 'cancelled'
 
+/** @public */
 export type ActivityStatus =
   | 'pending'
   | 'running'
@@ -16,6 +18,7 @@ export type ActivityStatus =
   | 'cancelled'
   | 'skipped'
 
+/** @public */
 export interface Thread {
   id: string
   title?: string
@@ -23,11 +26,13 @@ export interface Thread {
   runIds: string[]
 }
 
+/** @public */
 export interface RenderableContent {
   kind: string
   value: unknown
 }
 
+/** @public */
 export interface Message {
   id: string
   threadId: string
@@ -37,6 +42,7 @@ export interface Message {
   createdAt: string
 }
 
+/** @public */
 export interface AgentRun {
   id: string
   threadId: string
@@ -50,6 +56,7 @@ export interface AgentRun {
   error?: AgentError
 }
 
+/** @public */
 export interface Activity {
   id: string
   runId: string
@@ -63,6 +70,7 @@ export interface Activity {
   endedAt?: string
 }
 
+/** @public */
 export interface ToolCall {
   id: string
   runId: string
@@ -77,12 +85,14 @@ export interface ToolCall {
   endedAt?: string
 }
 
+/** @public */
 export interface AgentError {
   code: string
   message: string
   details?: unknown
 }
 
+/** @public */
 export interface StreamCursor {
   scope: 'run'
   lastSequence: number
@@ -92,13 +102,15 @@ export interface StreamCursor {
   blocked: boolean
 }
 
+/** @public */
 export interface Diagnostic {
-  code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'revision_conflict' | 'unknown_event'
+  code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'revision_conflict' | 'unknown_event' | 'unsupported_schema'
   message: string
   eventId: string
   runId: string
 }
 
+/** @public */
 export interface Intervention {
   id: string
   runId: string
@@ -118,12 +130,14 @@ export interface Intervention {
   response?: unknown
 }
 
+/** @public */
 export interface InterventionOption {
   value: string
   label: string
   description?: string
 }
 
+/** @public */
 export interface InterventionField {
   name: string
   label: string
@@ -133,6 +147,7 @@ export interface InterventionField {
   options?: InterventionOption[]
 }
 
+/** @public */
 export interface AgentTask {
   id: string
   runId: string
@@ -142,10 +157,13 @@ export interface AgentTask {
   status: TaskStatus
 }
 
+/** @public */
 export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
 
+/** @public */
 export type ArtifactStatus = 'generating' | 'available' | 'failed' | 'expired'
 
+/** @public */
 export interface ArtifactProvenance {
   type: 'agent' | 'tool' | 'user' | 'external'
   activityId?: string
@@ -153,11 +171,13 @@ export interface ArtifactProvenance {
   label?: string
 }
 
+/** @public */
 export interface ArtifactChecksum {
   algorithm: 'sha256' | 'sha384' | 'sha512' | 'other'
   value: string
 }
 
+/** @public */
 export interface Artifact {
   id: string
   runId: string
@@ -177,6 +197,7 @@ export interface Artifact {
   error?: AgentError
 }
 
+/** @public */
 export interface AgenticState {
   threads: Record<string, Thread>
   messages: Record<string, Message>
@@ -195,6 +216,7 @@ export interface AgenticState {
   diagnostics: Diagnostic[]
 }
 
+/** @public */
 export function createInitialState(): AgenticState {
   return { threads: {}, messages: {}, runs: {}, activities: {}, rootActivityIdsByRunId: {}, childActivityIdsByParentId: {}, toolCalls: {}, activityByToolCallId: {}, results: {}, interventions: {}, tasks: {}, taskRevisionByRunId: {}, artifacts: {}, streams: {}, diagnostics: [] }
 }

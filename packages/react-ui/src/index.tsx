@@ -10,6 +10,7 @@ const statusLabels = { queued: '排队中', running: '运行中', awaiting_input
 const toolStatusLabels = { running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' } as const
 const activityStatusLabels = { pending: '等待中', running: '执行中', awaiting_input: '等待操作', completed: '已完成', failed: '失败', cancelled: '已取消', skipped: '已跳过' } as const
 
+/** @public */
 export function RunStatus({ runId }: { runId: string }) {
   const run = useRun(runId)
   if (!run) return null
@@ -51,6 +52,7 @@ function RegisteredTool({ tool, activity, mode }: ToolRendererProps) {
   return Renderer ? <RendererErrorBoundary key={`${tool.id}:${tool.status}:${version}`} fallback={fallback}><Renderer tool={tool} activity={activity} mode={mode} /></RendererErrorBoundary> : fallback
 }
 
+/** @public */
 export function ToolFallback({ tool }: ToolRendererProps) {
   const duration = getDuration(tool.startedAt, tool.endedAt)
   const hasDetails = tool.input !== undefined || tool.inputText !== undefined || tool.output !== undefined || tool.error !== undefined
@@ -69,12 +71,14 @@ function DataBlock({ label, value, copyable = false }: { label: string; value: u
   return <section className="ac-data-block"><header><strong>{label}</strong>{copyable ? <button type="button" aria-label={`复制${label}`} onClick={() => void copyText(content)}>复制</button> : null}</header><pre>{content}</pre></section>
 }
 
+/** @public */
 export function ActivityTimeline({ runId }: { runId: string }) {
   const activityIds = useRootActivityIds(runId)
   if (activityIds.length === 0) return <div className="ac-empty">等待 Agent 开始执行…</div>
   return <ol className="ac-timeline" aria-label="运行活动">{activityIds.map((id) => <ActivityRow activityId={id} key={id} />)}</ol>
 }
 
+/** @public */
 export function RunAttemptHistory({ runId }: { runId: string }) {
   const state = useRuntimeSelector((snapshot) => snapshot.state)
   const attempts = selectRunAttemptHistory(state, runId)
@@ -82,6 +86,7 @@ export function RunAttemptHistory({ runId }: { runId: string }) {
   return <section className="ac-attempts" aria-label="运行尝试历史"><strong>尝试历史</strong><ol>{attempts.map((run) => <li key={run.id} data-current={run.id === runId ? 'true' : undefined}><span>第 {run.attempt} 次</span><small>{statusLabels[run.status]}</small></li>)}</ol></section>
 }
 
+/** @public */
 export function RunResult({ runId, mode = 'full' }: { runId: string; mode?: RendererMode }) {
   const content = useRunResult(runId)
   const registry = useRendererRegistry()
@@ -93,10 +98,12 @@ export function RunResult({ runId, mode = 'full' }: { runId: string; mode?: Rend
   return Renderer ? <RendererErrorBoundary key={`${content.kind}:${version}`} fallback={fallback}><Renderer {...props} /></RendererErrorBoundary> : fallback
 }
 
+/** @public */
 export function ResultFallback({ content }: ResultRendererProps) {
   return <section className="ac-result" data-kind={content.kind}><h3>结果</h3><pre>{stringify(content.value)}</pre></section>
 }
 
+/** @public */
 export function ArtifactCard({ artifactId, mode = 'full' }: { artifactId: string; mode?: RendererMode }) {
   const artifact = useArtifact(artifactId)
   const registry = useRendererRegistry()
@@ -108,6 +115,7 @@ export function ArtifactCard({ artifactId, mode = 'full' }: { artifactId: string
   return Renderer ? <RendererErrorBoundary key={`${artifact.id}:${artifact.status}:${version}`} fallback={fallback}><Renderer {...props} /></RendererErrorBoundary> : fallback
 }
 
+/** @public */
 export function ArtifactFallback({ artifact }: ArtifactRendererProps) {
   const history = useArtifactVersionHistory(artifact.id)
   const registry = useRendererRegistry()
@@ -122,12 +130,14 @@ function ArtifactPreviewSlot({ artifact, mode, Preview }: ArtifactPreviewRendere
   return <details className="ac-artifact-preview" onToggle={(event) => setOpen(event.currentTarget.open)}><summary>预览产物</summary>{open ? <RendererErrorBoundary fallback={<Notice tone="error">预览组件加载失败。</Notice>}><Preview artifact={artifact} mode={mode} /></RendererErrorBoundary> : null}</details>
 }
 
+/** @public */
 export function SandboxedArtifactFrame({ artifact, allowUri, title }: { artifact: Artifact; allowUri(uri: string, artifact: Artifact): boolean; title?: string }) {
   const uri = artifact.uri
   if (!uri || !isSafeHttpUri(uri) || !allowUri(uri, artifact)) return <Notice tone="warning">此产物未通过宿主预览策略。</Notice>
   return <iframe className="ac-artifact-frame" src={uri} title={title ?? `${artifact.name} 预览`} sandbox="" referrerPolicy="no-referrer" loading="lazy" />
 }
 
+/** @public */
 export function MessageView({ messageId, mode = 'full' }: { messageId: string; mode?: RendererMode }) {
   const message = useMessage(messageId)
   const registry = useRendererRegistry()
@@ -139,11 +149,13 @@ export function MessageView({ messageId, mode = 'full' }: { messageId: string; m
   return Renderer ? <RendererErrorBoundary key={`${message.id}:${message.content.kind}:${version}`} fallback={fallback}><Renderer {...props} /></RendererErrorBoundary> : fallback
 }
 
+/** @public */
 export function MessageFallback({ message }: MessageRendererProps) {
   const value = stringify(message.content.value)
   return <article className="ac-message" data-role={message.role} data-kind={message.content.kind}>{message.content.kind === 'markdown' ? <Markdown>{value}</Markdown> : <pre>{value}</pre>}</article>
 }
 
+/** @public */
 export function ThreadList({ activeThreadId, onSelect }: { activeThreadId?: string; onSelect?(threadId: string): void }) {
   const threadMap = useRuntimeSelector((snapshot) => snapshot.state.threads)
   const threads = Object.values(threadMap)
@@ -151,12 +163,14 @@ export function ThreadList({ activeThreadId, onSelect }: { activeThreadId?: stri
   return <nav className="ac-thread-list" aria-label="会话列表"><ul>{threads.map((thread) => <li key={thread.id}><button type="button" aria-current={thread.id === activeThreadId ? 'page' : undefined} onClick={() => onSelect?.(thread.id)}><strong>{thread.title || '未命名会话'}</strong><span>{thread.messageIds.length} 条消息</span></button></li>)}</ul></nav>
 }
 
+/** @public */
 export function MessageList({ threadId, empty }: { threadId: string; empty?: ReactNode }) {
   const messageIds = useRuntimeSelector((snapshot) => snapshot.state.threads[threadId]?.messageIds ?? emptyIds)
   if (messageIds.length === 0) return <>{empty ?? <EmptyState title="暂无消息" description="开始一个新的 Agent 任务。" />}</>
   return <section className="ac-message-list" aria-label="消息列表">{messageIds.map((id) => <MessageView key={id} messageId={id} />)}</section>
 }
 
+/** @public */
 export function TaskPanel({ runId }: { runId: string }) {
   const taskMap = useRuntimeSelector((snapshot) => snapshot.state.tasks)
   const tasks = Object.values(taskMap).filter((task) => task.runId === runId)
@@ -164,14 +178,17 @@ export function TaskPanel({ runId }: { runId: string }) {
   return <section className="ac-panel ac-task-panel" aria-labelledby={`tasks-${runId}`}><h3 id={`tasks-${runId}`}>任务</h3><ol>{tasks.map((task) => <li key={task.id} data-state={task.status}><span className="ac-task-indicator" aria-hidden="true" /><span><strong>{task.title}</strong><small>{task.status}</small></span></li>)}</ol></section>
 }
 
+/** @public */
 export function ArtifactPanel({ runId }: { runId: string }) {
   const artifacts = useRunArtifacts(runId)
   if (artifacts.length === 0) return null
   return <section className="ac-panel ac-artifact-panel" aria-labelledby={`artifacts-${runId}`}><h3 id={`artifacts-${runId}`}>产物</h3>{artifacts.map((artifact) => <ArtifactCard key={artifact.id} artifactId={artifact.id} mode="compact" />)}</section>
 }
 
+/** @public */
 export type InterventionResponder = (interventionId: string, response: unknown, idempotencyKey: string) => Promise<void>
 
+/** @public */
 export function InterventionPanel({ runId, onRespond }: { runId: string; onRespond?: InterventionResponder }) {
   const interventionMap = useRuntimeSelector((snapshot) => snapshot.state.interventions)
   const interventions = Object.values(interventionMap).filter((item) => item.runId === runId).sort((left, right) => left.requestedAt.localeCompare(right.requestedAt) || left.id.localeCompare(right.id))
@@ -246,21 +263,29 @@ function InterventionFieldInput({ field, value, disabled, onChange }: { field: I
   return <label htmlFor={id}><span>{field.label}{field.required ? ' *' : ''}</span>{field.type === 'textarea' ? <textarea id={id} value={typeof value === 'string' ? value : ''} placeholder={field.placeholder} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)} /> : field.type === 'select' ? <select id={id} value={typeof value === 'string' ? value : ''} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)}><option value="">请选择</option>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input id={id} type={field.type} value={typeof value === 'string' ? value : ''} placeholder={field.placeholder} required={field.required} disabled={disabled} onChange={(event) => onChange(event.target.value)} />}</label>
 }
 
+/** @public */
 export type NoticeTone = 'info' | 'warning' | 'error' | 'success'
+/** @public */
 export function Notice({ tone = 'info', title, children, action }: { tone?: NoticeTone; title?: string; children?: ReactNode; action?: ReactNode }) {
   return <section className="ac-notice" data-tone={tone} role={tone === 'error' ? 'alert' : 'status'}>{title ? <strong>{title}</strong> : null}{children ? <div>{children}</div> : null}{action ? <div className="ac-notice-action">{action}</div> : null}</section>
 }
+/** @public */
 export function LoadingState({ label = '正在加载…' }: { label?: string }) { return <div className="ac-state" role="status"><span className="ac-spinner" aria-hidden="true" />{label}</div> }
+/** @public */
 export function EmptyState({ title = '暂无内容', description, action }: { title?: string; description?: string; action?: ReactNode }) { return <section className="ac-state ac-empty-state"><strong>{title}</strong>{description ? <p>{description}</p> : null}{action}</section> }
+/** @public */
 export function ErrorState({ title = '出现问题', error, onRetry }: { title?: string; error?: string; onRetry?(): void }) { return <Notice tone="error" title={title} action={onRetry ? <button type="button" onClick={onRetry}>重试</button> : undefined}>{error}</Notice> }
+/** @public */
 export function RecoveryNotice({ message = '连接已恢复，内容已同步。', onDismiss }: { message?: string; onDismiss?(): void }) { return <Notice tone="success" action={onDismiss ? <button type="button" onClick={onDismiss}>知道了</button> : undefined}>{message}</Notice> }
 
+/** @public */
 export function ConnectionNotice() {
   const connection = useConnection()
   if (!['reconnecting', 'error'].includes(connection.status)) return null
   return <div className="ac-connection" role="status">{connection.status === 'reconnecting' ? `连接中断，正在第 ${connection.attempt} 次重连…` : connection.error ?? '连接失败'}</div>
 }
 
+/** @public */
 export interface ComposerProps {
   onSend(message: string): Promise<void>
   disabled?: boolean
@@ -272,6 +297,7 @@ export interface ComposerProps {
   placeholder?: string
 }
 
+/** @public */
 export function Composer({ onSend, disabled = false, running = false, runningStrategy = 'disable', leadingSlot, trailingSlot, onAttach, placeholder = '输入消息…' }: ComposerProps) {
   const [message, setMessage] = useState('')
   const sendState = useCommandState('send')
@@ -294,6 +320,7 @@ export function Composer({ onSend, disabled = false, running = false, runningStr
   </form>
 }
 
+/** @public */
 export interface AgenticChatProps {
   runtime: AgenticRuntime
   renderers?: RendererRegistry
@@ -306,10 +333,11 @@ export interface AgenticChatProps {
   onRespond?: InterventionResponder
   theme?: 'system' | 'light' | 'dark'
   className?: string
-  /** Experimental opt-in inspector. Runtime collection must also be enabled explicitly. */
+  /** Experimental opt-in inspector. Runtime collection must also be enabled explicitly. @alpha */
   experimentalInspector?: { revealDiagnosticMessages?: boolean }
 }
 
+/** @public */
 export function AgenticChat({ runtime, renderers, serverSnapshot, runId, onSend, onCancel, onRetry, onResume, onRespond, theme = 'system', className, experimentalInspector }: AgenticChatProps) {
   const rootClassName = ['ac-root', className].filter(Boolean).join(' ')
   return <AgenticChatProvider runtime={runtime} {...(renderers ? { renderers } : {})} {...(serverSnapshot ? { serverSnapshot } : {})}><AgenticChatContent runtime={runtime} rootClassName={rootClassName} theme={theme} onSend={onSend} {...(runId ? { runId } : {})} {...(onCancel ? { onCancel } : {})} {...(onRetry ? { onRetry } : {})} {...(onResume ? { onResume } : {})} {...(onRespond ? { onRespond } : {})} {...(experimentalInspector ? { experimentalInspector } : {})} /></AgenticChatProvider>
@@ -327,6 +355,7 @@ function AgenticChatContent({ runtime, rootClassName, theme, runId, onSend, onCa
   </div>
 }
 
+/** @alpha */
 export function ExperimentalRuntimeInspector({ runId, revealDiagnosticMessages = false }: { runId?: string; revealDiagnosticMessages?: boolean }) {
   const id = useId()
   const connectionHeadingId = `${id}-connection`
@@ -384,6 +413,7 @@ function isSafeHttpUri(value: string): boolean {
   try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
 }
 
+/** @public */
 export class ErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode; onError?(error: Error): void }, { failed: boolean }> {
   state = { failed: false }
 

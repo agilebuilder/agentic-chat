@@ -13,6 +13,7 @@
     "@agentic-chat/adapter-ai-sdk": "workspace:^",
     "@agentic-chat/adapter-chatbi": "workspace:^",
     "@agentic-chat/core": "workspace:^",
+    "@agentic-chat/react": "workspace:^",
     "@agentic-chat/react-ui": "workspace:^",
     "@agentic-chat/runtime": "workspace:^",
     "@agentic-chat/testkit": "workspace:^",

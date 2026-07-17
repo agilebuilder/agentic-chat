@@ -347,7 +347,7 @@ export function createSnapshot(state: AgenticState, revision: number): Canonical
 // @public (undocumented)
 export interface Diagnostic {
     // (undocumented)
-    code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'revision_conflict' | 'unknown_event';
+    code: 'duplicate_event' | 'sequence_gap' | 'invalid_transition' | 'revision_conflict' | 'unknown_event' | 'unsupported_schema';
     // (undocumented)
     eventId: string;
     // (undocumented)
