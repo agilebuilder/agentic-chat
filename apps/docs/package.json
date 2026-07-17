@@ -12,6 +12,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@agentic-chat/minimal": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
