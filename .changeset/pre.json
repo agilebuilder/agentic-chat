@@ -1,6 +1,6 @@
 {
   "mode": "pre",
-  "tag": "alpha",
+  "tag": "beta",
   "initialVersions": {
     "@agentic-chat/fixture-player": "0.0.0",
     "@agentic-chat/minimal": "0.0.0",
@@ -8,15 +8,26 @@
     "@agentic-chat/playground": "0.0.0",
     "@agentic-chat/storybook": "0.0.0",
     "@agentic-chat/adapter-ag-ui": "0.1.0-alpha.0",
+    "@agentic-chat/adapter-ai-sdk": "0.1.0-alpha.0",
     "@agentic-chat/adapter-chatbi": "0.1.0-alpha.0",
-    "@agentic-chat/core": "0.1.0-alpha.0",
-    "@agentic-chat/react": "0.1.0-alpha.0",
-    "@agentic-chat/react-ui": "0.1.0-alpha.0",
-    "@agentic-chat/runtime": "0.1.0-alpha.0",
+    "@agentic-chat/core": "0.1.0-alpha.1",
+    "@agentic-chat/react": "0.1.0-alpha.1",
+    "@agentic-chat/react-ui": "0.1.0-alpha.1",
+    "@agentic-chat/runtime": "0.1.0-alpha.1",
     "@agentic-chat/testkit": "0.1.0-alpha.0"
   },
   "changesets": [
+    "brave-events-wait",
+    "bright-agents-agree",
+    "calm-inspectors-listen",
     "calm-runs-smile",
-    "tall-walls-punch"
+    "calm-subagents-retry",
+    "clever-streams-switch",
+    "fair-betas-harden",
+    "gentle-hitl-waits",
+    "swift-tasks-replay",
+    "tall-walls-punch",
+    "tidy-packages-ship",
+    "wise-artifacts-preview"
   ]
 }

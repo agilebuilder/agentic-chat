@@ -135,3 +135,5 @@ P3 功能与工程收口已完成，最终判定和证据见 `docs/20-p3-accepta
 - GitHub 基线提交的 CI 与 Dependency Security 全绿；维护者已配置六个现有包的 trusted publisher 与 `npm-beta` environment，仓库侧 `publish-beta.yml`、OIDC provenance 端到端验证和 `adapter-ai-sdk` bootstrap 由 P4.0 完成。NVDA 由外部团队并行执行，不作为 P4.0 发布门。
 
 完整准备记录、操作顺序与回滚方案见 `docs/22-p4-beta-release-readiness.md`。
+
+2026-07-17，P3/P4.0 readiness 经 PR #1 合入 `main@3964f02`，合并前后 Node 20、Node 22、Browser quality 与 Dependency Security 均全绿。维护者随后批准 Changesets 正式切换；`codex/p4-beta-versioning` 已生成审定的七包 Beta 版本与 changelog，但尚未执行 npm publish、dist-tag、Git tag 或 GitHub Release。
