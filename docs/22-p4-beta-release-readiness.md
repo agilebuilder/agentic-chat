@@ -1,12 +1,12 @@
 # P4.0 Beta 发布准备与回滚清单
 
-> 状态：发布前准备进行中；npm beta 未发布；Changesets 仍处于 `alpha` pre-mode。
-> 基线：`a90182a feat: harden P3 beta contracts and release gates`。
+> 状态：版本切换已获维护者批准并完成；npm beta 未发布；Changesets 当前处于 `beta` pre-mode。
+> 基线：`3964f02 Merge pull request #1 from agilebuilder/codex/p4-beta-readiness`。
 > 审查日期：2026-07-17。
 
 ## 1. 结论
 
-P3 工程基线可以进入 P4.0 准备，但当前不得执行 Beta 发布。代码、包元数据和本地消费链可以继续加固；真正发布前必须由维护者批准 Changesets 状态切换和 npm 发布，并完成以下剩余发布门：
+P3 工程基线已经合入 `main`，P4.0 Changesets Beta 版本切换已在独立分支完成，但当前仍不得执行 npm Beta 发布。真正发布前还必须完成以下剩余发布门：
 
 1. 维护者已为六个现有包配置 npm trusted publisher，并创建 GitHub `npm-beta` environment；仓库还需合入精确同名的 `publish-beta.yml` 并用真实 GitHub-hosted run 验证 OIDC/provenance；
 2. 首次创建 `@agentic-chat/adapter-ai-sdk` 后再绑定 trusted publisher，并核验初始 dist-tag 行为。
@@ -15,11 +15,11 @@ NVDA + Edge 由维护者团队并行执行、结果后补，不属于 P4.0 或 B
 
 ## 2. Changesets 状态与预计版本
 
-当前 `.changeset/pre.json`：`mode = pre`、`tag = alpha`。已消费 `calm-runs-smile` 与 `tall-walls-punch`；P3 其余 changeset 与 P4.0 的未知事件修复仍待消费。
+当前 `.changeset/pre.json`：`mode = pre`、`tag = beta`。维护者已批准并执行 `pre exit → pre enter beta → version`；12 个 changeset 已记录到新的 pre-state 与 changelog。
 
-经隔离演算，批准后执行 `pre exit → pre enter beta → version` 将得到：
+隔离演算与正式生成结果一致：
 
-| Package | 当前版本 | 预计 Beta | npm 发布 |
+| Package | 切换前版本 | 当前 Beta | npm 发布 |
 |---|---:|---:|---|
 | `@agentic-chat/core` | `0.1.0-alpha.1` | `0.1.0-beta.2` | 是 |
 | `@agentic-chat/runtime` | `0.1.0-alpha.1` | `0.1.0-beta.2` | 是 |
@@ -30,7 +30,7 @@ NVDA + Edge 由维护者团队并行执行、结果后补，不属于 P4.0 或 B
 | `@agentic-chat/adapter-ai-sdk` | `0.1.0-alpha.0` | `0.1.0-beta.1` | 是，首次创建 |
 | `@agentic-chat/adapter-ag-ui` | `0.1.0-alpha.0` | 不变 | 否，保持 private |
 
-Beta 序号延续各包既有 prerelease 计数，不是统一的 `beta.0`。新增 core patch changeset 不会把这次合并后的首个 Beta 再提升为 `beta.3`。
+Beta 序号延续各包既有 prerelease 计数，不是统一的 `beta.0`。版本、changelog 与 pre-state 已生成；registry 检查确认七个精确 Beta 版本均尚未发布。
 
 ## 3. Package manifest 审查
 
@@ -88,7 +88,17 @@ core 只剩约 4% 预算；P4 新能力不得继续无界进入默认 core，优
 - `.github/workflows/bootstrap-adapter-ai-sdk.yml`：同样经过完整 preflight 和 environment 审批，只在输入精确确认文本并提供短期 `NPM_BOOTSTRAP_TOKEN` 时首次创建 adapter；发布后断言 manifest、`beta` tag 与“未创建 `latest`”；
 - 两条 workflow 的 checkout、Node 和 pnpm Actions 均固定为已复核的完整 commit SHA；正式 publish workflow 不读取长期 npm token；
 - `pnpm check:release` 将 workflow 文件名、environment、main-only、OIDC、provenance、npm 版本、Action SHA pin、显式 beta tag 和 private AG-UI 约束纳入 `pnpm verify`；
-- 隔离 clone 已再次完成 alpha → beta 版本演算、registry 未发布检查、adapter tarball 构建和 `npm publish --dry-run`；仓库工作区仍保持 alpha pre-mode，未执行任何正式状态切换或外部发布。
+- 正式切换前，隔离 clone 已完成 alpha → beta 版本演算、registry 未发布检查、adapter tarball 构建和 `npm publish --dry-run`；该演练没有改变仓库或外部发布状态。
+
+正式版本切换结果（2026-07-17）：
+
+- 分支：`codex/p4-beta-versioning`，基于已合并且全绿的远端 `main@3964f02`；
+- `pre exit → pre enter beta → version → pnpm install --lockfile-only` 已执行，七包版本与上表一致；
+- Changesets 对非发布 app 和 private AG-UI 产生的纯格式化噪声已移除；`adapter-ag-ui` 仍为 `private: true`、`0.1.0-alpha.0`；
+- `pnpm release:beta:check` 通过，七个目标版本在 registry 均为 unpublished；
+- `pnpm verify` 再次通过：130/130、API、包体、Node harness、七包 tarball consumer、TypeScript 与 production Vite build 全绿；
+- `pnpm quality:browser` 再次通过：23/23；七个 Beta tarball 均通过 `npm publish --dry-run --access public --tag beta`；
+- npm publish、dist-tag、Git tag 与 GitHub Release 均未执行。
 
 ## 6. 获批后的准确操作顺序
 
