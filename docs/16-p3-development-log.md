@@ -137,3 +137,12 @@ P3 功能与工程收口已完成，最终判定和证据见 `docs/20-p3-accepta
 完整准备记录、操作顺序与回滚方案见 `docs/22-p4-beta-release-readiness.md`。
 
 2026-07-17，P3/P4.0 readiness 经 PR #1 合入 `main@3964f02`，合并前后 Node 20、Node 22、Browser quality 与 Dependency Security 均全绿。维护者随后批准 Changesets 正式切换；`codex/p4-beta-versioning` 已生成审定的七包 Beta 版本与 changelog，但尚未执行 npm publish、dist-tag、Git tag 或 GitHub Release。
+
+## P4.0 Beta 发布与公共消费验收（2026-07-17）
+
+- PR #2 将审定版本合入 `main@3aa758e`，合并后 Node 20、Node 22、Browser quality 与 Dependency Security 再次全绿；
+- 维护者明确批准 npm Beta 发布；一次性 bootstrap 通过短期 token、`npm-beta` environment 和 provenance 创建 `adapter-ai-sdk@0.1.0-beta.1`，随后删除 GitHub secret、撤销 token，并配置第七个 trusted publisher；
+- npm 首次建包自动同时创建 `beta` 与 `latest`。维护者批准删除 `latest`，但 npm 10/11 均收到 registry HTTP 400；该例外已记录，不作为稳定版承诺；
+- 正式 OIDC workflow 在 core/runtime 发布后因 react trusted publisher 配置停止；配置修正后第三次 attempt 幂等跳过已发布版本，并成功发布七包完整矩阵；
+- 七包 manifest、内部精确依赖、integrity 与 SLSA provenance 均从公共 registry 验证；六个既有包的 `latest` 保持 Alpha；
+- 全新 npm consumer 的七根入口 import、严格 TypeScript typecheck、React 19 与 Vite production build 全绿；未创建 Git tag/GitHub Release，`adapter-ag-ui` 继续 private。

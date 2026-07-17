@@ -1,6 +1,6 @@
 # P4 执行计划：开源 1.0
 
-> 状态：P4.0 Beta 版本切换已完成、发布前验证进行中；npm beta 尚未发布。目标是把 P3 工程基线转化为可公开采用、可持续维护并可发布为 `1.0.0 latest` 的产品。
+> 状态：P4.0 npm Beta 已发布并通过公共 consumer 验收，进入 P4.1 契约冻结。目标是把 P3 工程基线转化为可公开采用、可持续维护并可发布为 `1.0.0 latest` 的产品。
 
 ## 1. 范围与原则
 
@@ -30,7 +30,7 @@ P4 解决稳定性、文档、真实采用、开源治理和发布可信度，�
 
 发布前版本、权限、验证、dist-tag 与回滚细则见 [P4.0 Beta 发布准备](./22-p4-beta-release-readiness.md)。NVDA + Edge 由外部团队并行执行、结果后补，不阻塞 P4.0 或 Beta。
 
-完成门：beta 可从公共 npm 安装；仓库、tag、npm 版本和 changelog 一致；不移动 `latest`。
+完成门（已通过）：beta 可从公共 npm 安装；仓库、npm 版本和 changelog 一致；本次未创建 Git tag/GitHub Release；六个既有包的 `latest` 未移动，首次 adapter 的 registry 初始 `latest` 例外已记录。
 
 ### P4.1 Canonical Schema 与公共 API 1.0
 
