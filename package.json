@@ -16,6 +16,7 @@
     "check:security": "node scripts/check-security.mjs",
     "api:check": "node scripts/check-public-api.mjs",
     "api:update": "node scripts/check-public-api.mjs --update",
+    "api:governance": "node scripts/check-api-governance.mjs",
     "storybook": "pnpm --filter @agentic-chat/storybook dev",
     "storybook:build": "pnpm --filter @agentic-chat/storybook... build",
     "quality:build": "pnpm --filter @agentic-chat/storybook... --filter @agentic-chat/fixture-player... build",
@@ -24,6 +25,9 @@
     "quality:a11y": "pnpm quality:build && playwright test --config playwright.quality.config.ts --grep accessibility",
     "quality:keyboard": "pnpm quality:build && playwright test --config playwright.quality.config.ts --grep \"keyboard|tab order\"",
     "quality:visual": "pnpm quality:build && playwright test --config playwright.quality.config.ts --grep \"visual baseline|narrow viewport\"",
+    "docs:build": "pnpm --filter @agentic-chat/minimal... build && pnpm --filter @agentic-chat/docs... build",
+    "docs:check": "node scripts/check-docs.mjs",
+    "examples:verify": "pnpm --filter @agentic-chat/examples... build",
     "quality": "pnpm check:css-scope && pnpm build && pnpm check:size && pnpm quality:browser",
     "changeset": "changeset",
     "changeset:pre-enter": "changeset pre enter alpha",
@@ -34,8 +38,9 @@
     "release:beta": "node scripts/publish-beta.mjs",
     "release:beta:check": "node scripts/check-beta-release.mjs --registry",
     "verify:node": "pnpm --filter @agentic-chat/node-harness test",
+    "verify:host:ai-sdk": "node scripts/verify-registry-ai-sdk-host.mjs",
     "verify:packages": "node scripts/verify-packages.mjs",
-    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:release && pnpm check:security && pnpm typecheck && pnpm test && pnpm build && pnpm api:check && pnpm check:size && pnpm verify:node && pnpm verify:packages"
+    "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:release && pnpm check:security && pnpm docs:check && pnpm typecheck && pnpm test && pnpm build && pnpm examples:verify && pnpm docs:build && pnpm api:check && pnpm api:governance && pnpm check:size && pnpm verify:node && pnpm verify:packages"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

@@ -1,0 +1,17 @@
+{
+  "name": "@agentic-chat/examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc --noEmit", "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@agentic-chat/adapter-ai-sdk": "workspace:*",
+    "@agentic-chat/core": "workspace:*",
+    "@agentic-chat/react": "workspace:*",
+    "@agentic-chat/react-ui": "workspace:*",
+    "@agentic-chat/runtime": "workspace:*",
+    "@agentic-chat/testkit": "workspace:*",
+    "react": "^19.0.0"
+  },
+  "devDependencies": { "@types/react": "^19.0.0", "typescript": "~5.9.0" }
+}

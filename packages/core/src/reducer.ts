@@ -4,6 +4,7 @@ import type { AgenticState, AgentTask, Diagnostic, RunStatus, StreamCursor, Task
 const terminalStatuses = new Set<RunStatus>(['completed', 'failed', 'cancelled'])
 const taskStatuses = new Set<TaskStatus>(['pending', 'in_progress', 'blocked', 'completed', 'cancelled'])
 const maxRetainedDiagnostics = 200
+/** @public */
 export const MAX_RETAINED_EVENT_IDS_PER_RUN = 256
 
 function validInterventionOptions(options: readonly { value: string; label: string }[] | undefined, minimum: number): boolean {
@@ -66,6 +67,29 @@ function diagnostic(state: AgenticState, event: CanonicalEvent, code: Diagnostic
   return { ...state, diagnostics: [...state.diagnostics, { code, message, eventId: event.eventId, runId: event.runId }].slice(-maxRetainedDiagnostics) }
 }
 
+function ensureThread(state: AgenticState, threadId: string, runId: string): void {
+  const existing = state.threads[threadId]
+  state.threads[threadId] = existing
+    ? { ...existing, runIds: existing.runIds.includes(runId) ? existing.runIds : [...existing.runIds, runId] }
+    : { id: threadId, messageIds: [], runIds: [runId] }
+}
+
+function syncResultMessage(state: AgenticState, event: CanonicalEvent, content: AgenticState['results'][string]): void {
+  const thread = state.threads[event.threadId]
+  if (!thread || !content) return
+  const messageId = `result:${event.runId}`
+  const existing = state.messages[messageId]
+  state.messages[messageId] = {
+    id: messageId,
+    threadId: event.threadId,
+    runId: event.runId,
+    role: 'assistant',
+    content: structuredClone(content),
+    createdAt: existing?.createdAt ?? event.timestamp,
+  }
+  if (!thread.messageIds.includes(messageId)) state.threads[event.threadId] = { ...thread, messageIds: [...thread.messageIds, messageId] }
+}
+
 function cursorFor(state: AgenticState, runId: string): StreamCursor {
   const cursor = state.streams[runId]
   return cursor ? { ...cursor, compactedThroughSequence: cursor.compactedThroughSequence ?? 0 } : { scope: 'run', lastSequence: 0, compactedThroughSequence: 0, seenEventIds: {}, blocked: false }
@@ -83,6 +107,7 @@ function advanceCursor(cursor: StreamCursor, event: CanonicalEvent): StreamCurso
  * Drops replay metadata already represented by a contiguous stream cursor.
  * Historical events remain idempotent because their sequence is covered by the
  * compacted-through watermark. A blocked cursor is never compacted.
+ * @public
  */
 export function compactRunStream(state: AgenticState, runId: string): AgenticState {
   const cursor = state.streams[runId]
@@ -96,7 +121,11 @@ export function compactRunStream(state: AgenticState, runId: string): AgenticSta
   }
 }
 
+/** @public */
 export function reduceEvent(state: AgenticState, event: CanonicalEvent): AgenticState {
+  if ((event as { schemaVersion?: unknown }).schemaVersion !== '0.1') {
+    return diagnostic(state, event, 'unsupported_schema', `Unsupported canonical event schema ${String((event as { schemaVersion?: unknown }).schemaVersion)}`)
+  }
   let cursor = cursorFor(state, event.runId)
   if (cursor.seenEventIds[event.eventId]) return state
   if (event.sequence <= cursor.compactedThroughSequence) return state
@@ -125,6 +154,8 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
 
   let next: AgenticState = {
     ...state,
+    threads: { ...state.threads },
+    messages: { ...state.messages },
     runs: { ...state.runs },
     activities: { ...state.activities },
     toolCalls: { ...state.toolCalls },
@@ -154,6 +185,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     if (predecessor && (predecessor.threadId !== event.threadId || !terminalStatuses.has(predecessor.status) || attempt !== predecessor.attempt + 1)) {
       return diagnostic(next, event, 'invalid_transition', `Retry predecessor ${retryOfRunId} is incompatible with attempt ${attempt}`)
     }
+    ensureThread(next, event.threadId, event.runId)
     if (existingRun?.status === 'queued') {
       if (existingRun.attempt !== attempt || existingRun.retryOfRunId !== retryOfRunId) return diagnostic(next, event, 'invalid_transition', 'Queued Run retry metadata does not match run.started')
       next.runs[event.runId] = { ...existingRun, status: 'running', startedAt: event.timestamp }
@@ -161,6 +193,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     else if (existingRun) return diagnostic(next, event, 'invalid_transition', `Run ${event.runId} has already started`)
     else next.runs[event.runId] = { id: event.runId, threadId: event.threadId, status: 'running', attempt, ...(retryOfRunId ? { retryOfRunId } : {}), activityIds: [], createdAt: event.timestamp, startedAt: event.timestamp }
   } else if (!existingRun && (event.type === 'run.cancelled' || event.type === 'run.failed')) {
+    ensureThread(next, event.threadId, event.runId)
     next.runs[event.runId] = {
       id: event.runId,
       threadId: event.threadId,
@@ -229,10 +262,14 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
     const activity = next.activities[activityId]
     if (activity) next.activities[activity.id] = { ...activity, status: event.type === 'tool.completed' ? 'completed' : 'failed', endedAt: event.timestamp }
   } else if (event.type === 'result.available') {
-    next.results[event.runId] = { kind: event.data.kind, value: event.data.result }
+    const content = { kind: event.data.kind, value: event.data.result }
+    next.results[event.runId] = content
+    syncResultMessage(next, event, content)
   } else if (event.type === 'result.delta') {
     const current = next.results[event.runId]
-    next.results[event.runId] = { kind: 'text', value: `${current?.kind === 'text' && typeof current.value === 'string' ? current.value : ''}${event.data.delta}` }
+    const content = { kind: 'text', value: `${current?.kind === 'text' && typeof current.value === 'string' ? current.value : ''}${event.data.delta}` }
+    next.results[event.runId] = content
+    syncResultMessage(next, event, content)
   } else if (event.type === 'intervention.requested') {
     if (next.interventions[event.data.interventionId]) return diagnostic(next, event, 'invalid_transition', `Intervention ${event.data.interventionId} already exists`)
     if (!event.data.interventionId.trim() || !event.data.prompt.trim()) return diagnostic(next, event, 'invalid_transition', 'Intervention ID and prompt must not be empty')
@@ -432,6 +469,7 @@ export function reduceEvent(state: AgenticState, event: CanonicalEvent): Agentic
   return next
 }
 
+/** @public */
 export function replayEvents(events: readonly CanonicalEvent[], initialState: AgenticState): AgenticState {
   return events.reduce(reduceEvent, initialState)
 }

@@ -1,0 +1,16 @@
+name: Feature request
+description: Propose a source-independent capability or developer-experience improvement.
+title: "[Feature]: "
+labels: ["enhancement", "status:needs-triage"]
+body:
+  - type: textarea
+    attributes:
+      label: Problem and use cases
+      description: Explain the problem and identify at least two event sources if this changes core.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed contract and alternatives
+    validations:
+      required: true

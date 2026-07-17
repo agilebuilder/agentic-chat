@@ -1,11 +1,13 @@
 import type { Activity, AgentRun, AgentTask, AgenticState, Artifact, Intervention, Message, RenderableContent, TaskStatus, Thread, ToolCall } from './model.js'
 import { createInitialState } from './model.js'
 
+/** @public */
 export interface CanonicalStreamCheckpoint {
   runId: string
   lastSequence: number
 }
 
+/** @public */
 export interface CanonicalSnapshotEntities {
   threads: Thread[]
   messages: Message[]
@@ -18,12 +20,12 @@ export interface CanonicalSnapshotEntities {
   artifacts: SnapshotArtifact[]
 }
 
-/** Schema 0.2 existed before requestedAt was added; imports accept the old omission. */
+/** Schema 0.2 existed before requestedAt was added; imports accept the old omission. @public */
 export type SnapshotIntervention = Omit<Intervention, 'requestedAt'> & { requestedAt?: string }
-/** Schema 0.2 existed before Artifact version/provenance timestamps. */
+/** Schema 0.2 existed before Artifact version/provenance timestamps. @public */
 export type SnapshotArtifact = Omit<Artifact, 'version' | 'provenance' | 'createdAt'> & { version?: number; provenance?: Artifact['provenance']; createdAt?: string; sourceActivityId?: string }
 
-/** Stable persistence schema. It intentionally does not expose AgenticState. */
+/** Stable persistence schema. It intentionally does not expose AgenticState. @public */
 export interface CanonicalSnapshot {
   schemaVersion: '0.2'
   revision: number
@@ -32,7 +34,7 @@ export interface CanonicalSnapshot {
   streams: CanonicalStreamCheckpoint[]
 }
 
-/** @deprecated Read-only migration shape produced before P3. */
+/** @deprecated Read-only migration shape produced before P3. @public */
 export interface LegacyCanonicalSnapshot {
   schemaVersion: '0.1'
   revision: number
@@ -55,6 +57,7 @@ const assertRevision = (revision: number, label: string): void => {
 const validOptions = (options: readonly { value: string; label: string }[] | undefined, minimum: number): boolean => !!options && options.length >= minimum && new Set(options.map((option) => option.value)).size === options.length && options.every((option) => !!option.value.trim() && !!option.label.trim())
 const validTaskStatuses = new Set<TaskStatus>(['pending', 'in_progress', 'blocked', 'completed', 'cancelled'])
 
+/** @public */
 export function createSnapshot(state: AgenticState, revision: number): CanonicalSnapshot {
   assertRevision(revision, 'Snapshot revision')
   if (Object.values(state.streams).some((stream) => stream.blocked)) throw new Error('Cannot create an authoritative snapshot from a blocked stream')
@@ -113,6 +116,7 @@ function migrateArtifactDefaults(artifact: Artifact, fallbackCreatedAt?: string)
   delete legacyArtifact.sourceActivityId
 }
 
+/** @public */
 export function importSnapshot(snapshot: CanonicalSnapshot | LegacyCanonicalSnapshot): AgenticState {
   assertRevision(snapshot.revision, 'Snapshot revision')
   if (snapshot.schemaVersion === '0.1') {

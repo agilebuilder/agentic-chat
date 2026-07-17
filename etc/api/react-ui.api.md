@@ -29,6 +29,7 @@ export function AgenticChat(input: AgenticChatProps): JSX.Element;
 export interface AgenticChatProps {
     // (undocumented)
     className?: string;
+    // @alpha
     experimentalInspector?: {
         revealDiagnosticMessages?: boolean;
     };
@@ -130,7 +131,7 @@ export function ErrorState(input: {
     onRetry?(): void;
 }): JSX.Element;
 
-// @public (undocumented)
+// @alpha (undocumented)
 export function ExperimentalRuntimeInspector(input: {
     runId?: string;
     revealDiagnosticMessages?: boolean;

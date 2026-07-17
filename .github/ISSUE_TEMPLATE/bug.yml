@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a reproducible Agentic Chat defect.
+title: "[Bug]: "
+labels: ["bug", "status:needs-triage"]
+body:
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: Provide a minimal repository or exact steps with secrets removed.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Package versions
+      placeholder: "@agentic-chat/core@0.1.0-beta.2"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment and expected behavior
+      description: Include Node, React, TypeScript, browser, adapter and expected/actual behavior.
+    validations:
+      required: true

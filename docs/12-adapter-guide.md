@@ -1,5 +1,7 @@
 # Adapter 接入指南
 
+最小自定义 adapter 对应仓库内持续编译的 [`apps/examples/src/custom-adapter.ts`](../apps/examples/src/custom-adapter.ts)，AI SDK 非 ChatBI 宿主骨架见 [`apps/examples/src/ai-sdk-host.ts`](../apps/examples/src/ai-sdk-host.ts)。
+
 Adapter 把某个 Agent 后端的事件协议转换为 `CanonicalEvent`，并声明它能提供的命令和恢复能力。它不渲染 UI，也不应把凭据或 transport 放进 renderer。
 
 ## 最小 Adapter
@@ -82,7 +84,7 @@ const runtime = createRuntime({
 
 - `strict-per-run`：每个 Run 从 sequence 1 开始严格递增；缺口会阻塞后续事件，直到补齐。
 - `synthesized-stream-order`：源协议没有序号，adapter 按已观察顺序合成；必须说明重连限制。
-- `unordered`：只适合不能保证顺序的降级集成，功能和恢复能力有限。
+- canonical 输出不接受无序模式。不能保证来源顺序的 adapter 必须先缓冲、排序，或按已验证的接收顺序合成连续 sequence；无法形成权威顺序的来源事件只应作为 adapter diagnostics 暴露，不能进入 reducer。
 - eventId 在重放时必须稳定；同 eventId 会被 reducer 去重。
 - terminal Run 不会被迟到的 started/progress 事件复活，异常会写入 diagnostic。
 

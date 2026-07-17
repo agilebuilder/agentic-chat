@@ -1,0 +1,11 @@
+name: Integration question
+description: Ask about supported adapters, runtime, React or UI integration.
+title: "[Question]: "
+labels: ["question", "status:needs-triage"]
+body:
+  - type: textarea
+    attributes:
+      label: Goal and current configuration
+      description: Include exact versions and the smallest relevant code or diagnostics with secrets removed.
+    validations:
+      required: true

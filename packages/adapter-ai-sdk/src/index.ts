@@ -1,6 +1,7 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 import type { AdapterCapabilities } from '@agentic-chat/runtime'
 
+/** @public */
 export const aiSdkCapabilities: AdapterCapabilities = {
   send: false,
   sequence: 'synthesized-stream-order',
@@ -12,9 +13,10 @@ export const aiSdkCapabilities: AdapterCapabilities = {
   artifacts: false,
 }
 
-/** Structural UI Message Stream v1 chunk; no AI SDK runtime dependency is required. */
+/** Structural UI Message Stream v1 chunk; no AI SDK runtime dependency is required. @public */
 export interface AiSdkUIMessageChunk { type: string; [key: string]: unknown }
 
+/** @public */
 export interface AiSdkAdapterContext {
   threadId: string
   runId: string
@@ -22,12 +24,14 @@ export interface AiSdkAdapterContext {
   startedAt?: string
 }
 
+/** @public */
 export interface AiSdkAdapterDiagnostic {
   code: 'invalid_event' | 'unsupported_event'
   message: string
   sourceIndex: number
 }
 
+/** @public */
 export interface AiSdkAdaptResult {
   events: CanonicalEvent[]
   diagnostics: AiSdkAdapterDiagnostic[]
@@ -35,7 +39,7 @@ export interface AiSdkAdaptResult {
 
 const stringField = (chunk: AiSdkUIMessageChunk, key: string): string | undefined => typeof chunk[key] === 'string' && chunk[key] ? chunk[key] as string : undefined
 
-/** Parse one SSE data payload. Comments/keep-alives return undefined; [DONE] returns null. */
+/** Parse one SSE data payload. Comments/keep-alives return undefined; [DONE] returns null. @public */
 export function parseAiSdkSseData(value: string): AiSdkUIMessageChunk | null | undefined {
   const data = value.trim()
   if (!data || data.startsWith(':')) return undefined
@@ -48,6 +52,7 @@ export function parseAiSdkSseData(value: string): AiSdkUIMessageChunk | null | u
 /**
  * Adapts one complete AI SDK UI Message Stream v1 message. The transport owns
  * thread/run IDs because the wire chunks intentionally do not carry them.
+ * @public
  */
 export function adaptAiSdkUIMessageChunks(chunks: readonly AiSdkUIMessageChunk[], context: AiSdkAdapterContext): AiSdkAdaptResult {
   if (!context.threadId.trim() || !context.runId.trim()) throw new Error('AI SDK adapter requires threadId and runId')

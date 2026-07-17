@@ -1,8 +1,10 @@
 import type { AgenticState, CanonicalEvent, RunStatus } from '@agentic-chat/core'
 import { createInitialState, createSnapshot, importSnapshot, reduceEvent, replayEvents } from '@agentic-chat/core'
 
-export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-order' | 'unordered'
+/** @public */
+export type ConformanceSequenceMode = 'strict-per-run' | 'synthesized-stream-order'
 
+/** @public */
 export interface AdapterConformanceOptions {
   expectedStatus?: Extract<RunStatus, 'completed' | 'failed' | 'cancelled'>
   sequence?: ConformanceSequenceMode
@@ -10,16 +12,18 @@ export interface AdapterConformanceOptions {
   initialState?: AgenticState
 }
 
+/** @public */
 export interface ConformanceResult {
   state: AgenticState
   issues: string[]
 }
 
+/** @public */
 export interface SnapshotReplayConformanceResult extends ConformanceResult {
   fullReplayState: AgenticState
 }
 
-/** Checks durable HITL replay and the single-resolution invariant. */
+/** Checks durable HITL replay and the single-resolution invariant. @public */
 export function checkInterventionConformance(events: readonly CanonicalEvent[]): ConformanceResult {
   const issues: string[] = []
   const requestedIndex = events.findIndex((event) => event.type === 'intervention.requested')
@@ -48,7 +52,7 @@ export function checkInterventionConformance(events: readonly CanonicalEvent[]):
   return { state, issues: [...new Set(issues)] }
 }
 
-/** Checks durable Artifact recovery, provenance, and completed version chains. */
+/** Checks durable Artifact recovery, provenance, and completed version chains. @public */
 export function checkArtifactConformance(events: readonly CanonicalEvent[]): ConformanceResult {
   const createdIndex = events.findIndex((event) => event.type === 'artifact.created')
   if (createdIndex < 0) return { state: replayEvents(events, createInitialState()), issues: ['fixture must create an Artifact'] }
@@ -62,7 +66,7 @@ export function checkArtifactConformance(events: readonly CanonicalEvent[]): Con
   return { state: snapshotResult.state, issues: [...new Set(issues)] }
 }
 
-/** Checks a retry chain represented as distinct, independently sequenced Run streams. */
+/** Checks a retry chain represented as distinct, independently sequenced Run streams. @public */
 export function checkRetryAttemptConformance(attemptStreams: readonly (readonly CanonicalEvent[])[]): ConformanceResult {
   const issues: string[] = []
   if (attemptStreams.length < 2) return { state: createInitialState(), issues: ['retry fixture must contain at least two attempt streams'] }
@@ -88,7 +92,7 @@ export function checkRetryAttemptConformance(attemptStreams: readonly (readonly 
   return { state, issues: [...new Set(issues)] }
 }
 
-/** Checks that a canonical snapshot taken after the prefix preserves suffix replay semantics. */
+/** Checks that a canonical snapshot taken after the prefix preserves suffix replay semantics. @public */
 export function checkSnapshotReplayConformance(
   events: readonly CanonicalEvent[],
   splitIndex: number,
@@ -119,6 +123,7 @@ const terminalEventTypes = new Set<CanonicalEvent['type']>(['run.completed', 'ru
  * Checks the source-independent invariants every adapter fixture must satisfy.
  * It deliberately consumes canonical events so adapters can keep their source
  * event and transport types private.
+ * @public
  */
 export function checkAdapterConformance(
   events: readonly CanonicalEvent[],
@@ -138,11 +143,9 @@ export function checkAdapterConformance(
   if (events.some((event) => !event.source)) issues.push('every adapted event must identify its source')
 
   const sequenceMode = options.sequence ?? 'strict-per-run'
-  if (sequenceMode !== 'unordered') {
-    events.forEach((event, index) => {
-      if (event.sequence !== index + 1) issues.push(`sequence must be contiguous: expected ${index + 1}, received ${event.sequence}`)
-    })
-  }
+  events.forEach((event, index) => {
+    if (event.sequence !== index + 1) issues.push(`sequence must be contiguous: expected ${index + 1}, received ${event.sequence}`)
+  })
 
   const terminalIndexes = events.flatMap((event, index) => terminalEventTypes.has(event.type) ? [index] : [])
   if (terminalIndexes.length !== 1) issues.push('fixture must contain exactly one terminal run event')
@@ -167,7 +170,7 @@ export function checkAdapterConformance(
   return { state, issues: [...new Set(issues)] }
 }
 
-/** @deprecated Use checkAdapterConformance for new adapter fixtures. */
+/** @deprecated Use checkAdapterConformance for new adapter fixtures. @public */
 export function checkRunConformance(events: readonly CanonicalEvent[]): ConformanceResult {
   return checkAdapterConformance(events)
 }

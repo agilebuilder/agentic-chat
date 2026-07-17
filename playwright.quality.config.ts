@@ -14,9 +14,13 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: 'line',
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    { name: 'firefox', grepInvert: /visual baseline|narrow viewport/u, use: { browserName: 'firefox' } },
+    { name: 'webkit', grepInvert: /visual baseline|narrow viewport/u, use: { browserName: 'webkit' } },
+  ],
   use: {
     baseURL: 'http://127.0.0.1:6007',
-    browserName: 'chromium',
     locale: 'en-US',
     timezoneId: 'UTC',
   },

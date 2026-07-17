@@ -19,6 +19,8 @@ describe('canonical reducer', () => {
     expect(first.runs['run-1']?.status).toBe('completed')
     expect(first.toolCalls['tool-call-1']?.status).toBe('completed')
     expect(first.results['run-1']).toEqual({ kind: 'test.result', value: { row_count: 3 } })
+    expect(first.threads['thread-1']).toEqual({ id: 'thread-1', messageIds: ['result:run-1'], runIds: ['run-1'] })
+    expect(first.messages['result:run-1']).toMatchObject({ role: 'assistant', runId: 'run-1', content: { kind: 'test.result', value: { row_count: 3 } } })
     expect(first.streams['run-1']).toMatchObject({ compactedThroughSequence: 5, seenEventIds: {} })
   })
 
@@ -81,6 +83,25 @@ describe('canonical reducer', () => {
     expect(next.runs['run-1']).toBeUndefined()
     expect(next.streams['run-1']?.lastSequence).toBe(1)
     expect(next.diagnostics.at(-1)?.code).toBe('invalid_transition')
+  })
+
+  it('rejects an unsupported event schema without consuming sequence', () => {
+    const unsupported = { ...chatBiSuccessfulRun[0]!, schemaVersion: '9.0' } as unknown as CanonicalEvent
+    const state = reduceEvent(createInitialState(), unsupported)
+    expect(state.runs['run-1']).toBeUndefined()
+    expect(state.streams['run-1']).toBeUndefined()
+    expect(state.diagnostics.at(-1)?.code).toBe('unsupported_schema')
+  })
+
+  it('maintains one assistant result message while text streams', () => {
+    const events: CanonicalEvent[] = [
+      chatBiSuccessfulRun[0]!,
+      { schemaVersion: '0.1', eventId: 'delta-1', type: 'result.delta', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:01Z', data: { delta: 'Hello' } },
+      { schemaVersion: '0.1', eventId: 'delta-2', type: 'result.delta', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:02Z', data: { delta: ' world' } },
+    ]
+    const state = replayEvents(events, createInitialState())
+    expect(state.messages['result:run-1']).toMatchObject({ content: { kind: 'text', value: 'Hello world' }, createdAt: '2026-07-13T00:00:01Z' })
+    expect(state.threads['thread-1']?.messageIds).toEqual(['result:run-1'])
   })
 
   it('does not replace an existing run when run.started re-enters with a new event id', () => {
@@ -198,5 +219,33 @@ describe('canonical reducer', () => {
     expect(compacted.streams['run-1']).toMatchObject({ compactedThroughSequence: 3, seenEventIds: {} })
     expect(replayEvents(chatBiSuccessfulRun.slice(0, 3), compacted)).toBe(compacted)
     expect(compactRunStream(compacted, 'run-1')).toBe(compacted)
+  })
+
+  it('recovers a missing event before applying a queued cancellation', () => {
+    const started = reduceEvent(createInitialState(), chatBiSuccessfulRun[0]!)
+    const cancellation: CanonicalEvent = { schemaVersion: '0.1', eventId: 'cancel-3', type: 'run.cancelled', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:03Z', data: {} }
+    const blocked = reduceEvent(started, cancellation)
+    expect(blocked.streams['run-1']?.blocked).toBe(true)
+    const repaired = reduceEvent(blocked, { schemaVersion: '0.1', eventId: 'observed-2', type: 'source.observed', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:02Z', data: { sourceType: 'transport.reconnected' } })
+    const cancelled = reduceEvent(repaired, cancellation)
+    expect(cancelled.runs['run-1']?.status).toBe('cancelled')
+    expect(cancelled.streams['run-1']).toMatchObject({ blocked: false, lastSequence: 3 })
+  })
+
+  it('keeps the first terminal result when cancel and completion race', () => {
+    const cancelled = replayEvents([
+      chatBiSuccessfulRun[0]!,
+      { schemaVersion: '0.1', eventId: 'race-cancel', type: 'run.cancelled', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:02Z', data: {} },
+    ], createInitialState())
+    const completed = reduceEvent(cancelled, { schemaVersion: '0.1', eventId: 'race-complete', type: 'run.completed', threadId: 'thread-1', runId: 'run-1', sequence: 3, timestamp: '2026-07-13T00:00:03Z', data: {} })
+    expect(completed.runs['run-1']?.status).toBe('cancelled')
+    expect(completed.diagnostics.at(-1)?.code).toBe('invalid_transition')
+  })
+
+  it('does not reapply compacted history after snapshot-style reconnect', () => {
+    const completed = replayEvents(chatBiSuccessfulRun, createInitialState())
+    const replayedPrefix = replayEvents(chatBiSuccessfulRun.slice(0, 4), completed)
+    expect(replayedPrefix).toBe(completed)
+    expect(replayedPrefix.messages['result:run-1']?.content).toEqual({ kind: 'test.result', value: { row_count: 3 } })
   })
 })

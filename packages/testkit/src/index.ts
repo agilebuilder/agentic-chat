@@ -2,6 +2,7 @@ import type { CanonicalEvent } from '@agentic-chat/core'
 export * from './conformance.js'
 export * from './coding-fixture.js'
 
+/** @public */
 export interface RawChatBiEvent {
   protocol_version: '1.0'
   event_id: string
@@ -18,6 +19,7 @@ const raw = (runId: string, sequence: number, eventType: string, payload: Record
   protocol_version: '1.0', event_id: `${runId}-event-${sequence}`, event_type: eventType, session_id: 'session-fixture', run_id: runId, sequence, created_at: `2026-07-13T00:00:0${sequence}Z`, tool_call_id: toolCallId, payload,
 })
 
+/** @public */
 export const rawChatBiSuccessfulRun = [
   raw('run-success', 1, 'run.started', { message: 'Run started' }),
   raw('run-success', 2, 'tool.started', { tool_name: 'query_data_source' }, 'call-success'),
@@ -26,6 +28,7 @@ export const rawChatBiSuccessfulRun = [
   raw('run-success', 5, 'run.completed', { row_count: 1 }),
 ] as const
 
+/** @public */
 export const rawChatBiFailedRun = [
   raw('run-failed', 1, 'run.started', { message: 'Run started' }),
   raw('run-failed', 2, 'tool.started', { tool_name: 'query_data_source' }, 'call-failed'),
@@ -33,10 +36,12 @@ export const rawChatBiFailedRun = [
   raw('run-failed', 4, 'run.failed', { message: 'query timeout' }),
 ] as const
 
+/** @public */
 export const rawChatBiCancelledRun = [
   raw('run-cancelled', 1, 'run.cancelled', { message: 'Run cancelled' }),
 ] as const
 
+/** @public */
 export const chatBiSuccessfulRun: CanonicalEvent[] = [
   { schemaVersion: '0.1', eventId: 'evt-1', type: 'run.started', threadId: 'thread-1', runId: 'run-1', sequence: 1, timestamp: '2026-07-13T00:00:00Z', data: {}, source: 'chatbi' },
   { schemaVersion: '0.1', eventId: 'evt-2', type: 'tool.started', threadId: 'thread-1', runId: 'run-1', sequence: 2, timestamp: '2026-07-13T00:00:01Z', data: { activityId: 'tool-activity-1', toolCallId: 'tool-call-1', name: 'query_data_source' }, source: 'chatbi' },

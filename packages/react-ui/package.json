@@ -3,6 +3,10 @@
   "version": "0.1.0-beta.2",
   "type": "module",
   "description": "Styled React components for Agentic Chat UI.",
+  "homepage": "https://github.com/agilebuilder/agentic-chat#readme",
+  "bugs": { "url": "https://github.com/agilebuilder/agentic-chat/issues" },
+  "keywords": ["agent", "chat", "react", "ui", "accessibility"],
+  "engines": { "node": ">=20" },
   "license": "MIT",
   "repository": {
     "type": "git",

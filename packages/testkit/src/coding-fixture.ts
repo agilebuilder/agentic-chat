@@ -1,5 +1,6 @@
 import type { CanonicalEvent } from '@agentic-chat/core'
 
+/** @public */
 export type CodingFixtureEvent =
   | { type: 'run_started' }
   | { type: 'subagent_started'; id: string; title: string }
@@ -14,6 +15,7 @@ export type CodingFixtureEvent =
   | { type: 'activity_finished'; id: string }
   | { type: 'run_finished' }
 
+/** @public */
 export const codingAgentSourceFixture: CodingFixtureEvent[] = [
   { type: 'run_started' },
   { type: 'subagent_started', id: 'subagent-tests', title: '检查测试' },
@@ -31,6 +33,7 @@ export const codingAgentSourceFixture: CodingFixtureEvent[] = [
   { type: 'run_finished' },
 ]
 
+/** @public */
 export function adaptCodingFixture(source: readonly CodingFixtureEvent[]): CanonicalEvent[] {
   return source.map((item, index): CanonicalEvent => {
     const base = { schemaVersion: '0.1' as const, eventId: `coding:${index + 1}`, threadId: 'code-thread', runId: 'code-run', sequence: index + 1, timestamp: `2026-07-13T01:00:${String(index).padStart(2, '0')}Z`, source: 'coding-agent-behavioral-fixture' }
@@ -56,6 +59,7 @@ const retryEvent = (runId: string, sequence: number, type: CanonicalEvent['type'
   timestamp: `2026-07-15T04:00:0${sequence}Z`, source: 'coding-agent-behavioral-fixture', type, data,
 } as CanonicalEvent)
 
+/** @public */
 export const codingAgentRetryAttemptStreams: readonly CanonicalEvent[][] = [
   [
     retryEvent('code-attempt-1', 1, 'run.started', {}),
