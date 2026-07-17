@@ -17,6 +17,7 @@ const guides = [
   ['Snapshot and recovery', '29-snapshot-and-recovery.md'],
   ['Security and troubleshooting', '30-security-performance-troubleshooting.md'],
   ['Host integration cases', '31-host-integration-cases.md'],
+  ['RC and 1.0 release runbook', '34-rc-and-1.0-release-runbook.md'],
 ] as const
 const references = ['core', 'runtime', 'react', 'react-ui', 'testkit', 'adapter-chatbi', 'adapter-ai-sdk'] as const
 

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "candidate": null,
+  "publishedAt": null,
+  "observationEndsAt": null,
+  "status": "not-started",
+  "openBlockers": [],
+  "openHighs": [],
+  "hostEvidence": {
+    "chatbi": null,
+    "aiSdk": null
+  },
+  "accessibilityEvidence": null,
+  "approvedBy": null
+}

@@ -1,0 +1,83 @@
+name: Publish npm RC or stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Publish channel
+        required: true
+        type: choice
+        options:
+          - rc
+          - latest
+      confirmation:
+        description: Type publish-rc-reviewed or publish-latest-1.0.0
+        required: true
+        type: string
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.13.1
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check
+        env:
+          AGENTIC_CHAT_RELEASE_CHANNEL: ${{ inputs.channel }}
+      - run: pnpm verify
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm quality:browser
+
+  publish:
+    needs: preflight
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.13.1
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: pnpm
+      - run: npm install --global npm@11.18.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Publish exact reviewed artifacts
+        run: pnpm release:publish
+        env:
+          AGENTIC_CHAT_RELEASE_APPROVED: 'true'
+          AGENTIC_CHAT_RELEASE_CHANNEL: ${{ inputs.channel }}
+          AGENTIC_CHAT_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+          NPM_CONFIG_PROVENANCE: 'true'
+      - name: Create immutable 1.0 tag and GitHub Release
+        if: inputs.channel == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create v1.0.0 --target "${GITHUB_SHA}" --generate-notes --title "Agentic Chat 1.0.0"
