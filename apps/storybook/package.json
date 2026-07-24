@@ -13,7 +13,7 @@
     "@agentic-chat/react": "workspace:*",
     "@agentic-chat/react-ui": "workspace:*",
     "@agentic-chat/runtime": "workspace:*",
-    "react": "^19.0.0",
+    "react": "^19.2.8",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
