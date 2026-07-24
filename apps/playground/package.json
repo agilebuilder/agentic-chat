@@ -9,7 +9,7 @@
     "@agentic-chat/react": "workspace:*",
     "@agentic-chat/runtime": "workspace:*",
     "@agentic-chat/react-ui": "workspace:*",
-    "react": "^19.0.0",
+    "react": "^19.2.8",
     "react-dom": "^19.0.0"
   },
   "devDependencies": { "@vitejs/plugin-react": "^6.0.0", "typescript": "~5.9.0", "vite": "^8.0.0" }
