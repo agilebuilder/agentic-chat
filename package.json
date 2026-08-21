@@ -46,20 +46,20 @@
     "verify": "pnpm check:boundaries && pnpm check:css-scope && pnpm check:release && pnpm check:security && pnpm check:licenses && pnpm docs:check && pnpm typecheck && pnpm test && pnpm build && pnpm examples:verify && pnpm docs:build && pnpm api:check && pnpm api:governance && pnpm check:size && pnpm verify:node && pnpm verify:packages"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.12.1",
-    "@changesets/cli": "^2.31.0",
-    "@microsoft/api-extractor": "^7.58.9",
-    "@playwright/test": "1.61.1",
-    "@storybook/react-vite": "10.5.0",
-    "@types/node": "^24.0.0",
+    "@axe-core/playwright": "4.13.0",
+    "@changesets/cli": "^3.0.0",
+    "@microsoft/api-extractor": "^7.58.12",
+    "@playwright/test": "1.62.1",
+    "@storybook/react-vite": "10.5.8",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^6.0.0",
+    "@vitejs/plugin-react": "^6.0.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "storybook": "10.5.0",
-    "typescript": "~5.9.0",
-    "vite": "^8.0.0",
+    "storybook": "10.5.8",
+    "typescript": "~7.0.2",
+    "vite": "^8.2.1",
     "vitest": "^4.0.0"
   }
 }
