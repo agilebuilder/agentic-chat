@@ -13,5 +13,5 @@
     "@agentic-chat/testkit": "workspace:*",
     "react": "^19.0.0"
   },
-  "devDependencies": { "@types/react": "^19.0.0", "typescript": "~5.9.0" }
+  "devDependencies": { "@types/react": "^19.0.0", "typescript": "~7.0.2" }
 }
