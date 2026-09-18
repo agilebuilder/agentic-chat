@@ -13,12 +13,12 @@
     "@agentic-chat/react": "workspace:*",
     "@agentic-chat/react-ui": "workspace:*",
     "@agentic-chat/runtime": "workspace:*",
-    "react": "^19.0.0",
+    "react": "^19.3.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@storybook/react-vite": "10.5.0",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.3.0",
     "storybook": "10.5.0",
     "typescript": "~5.9.0"
   }
